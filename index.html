@@ -548,6 +548,7 @@
     }
     .history-dot.created { background: #22c55e; }
     .history-dot.updated { background: #3b82f6; }
+    .history-dot.submitted { background: #f59e0b; }
     .history-meta { flex: 1; }
     .history-action { font-weight: 600; color: var(--text); text-transform: capitalize; }
     .history-time { color: var(--muted); margin-top: 2px; }
@@ -881,9 +882,10 @@
               <th class="sortable" data-col="case_number">Case # <span class="sort-arrow">↕</span></th>
               <th class="sortable" data-col="_resp_count">Responding <span class="sort-arrow">↕</span></th>
               <th class="sortable" data-col="date">Date <span class="sort-arrow">↕</span></th>
+              <th>Submitted</th>
               <th class="sortable" data-col="case_cat">Category <span class="sort-arrow">↕</span></th>
               <th class="sortable" data-col="case_type">Type <span class="sort-arrow">↕</span></th>
-              <th>Location</th><th>Start</th><th>End</th><th>Notes</th>
+              <th>Location</th><th>Start</th><th>Notes</th>
             </tr></thead>
             <tbody id="cases-tbody">
               <tr><td colspan="9"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
@@ -1845,11 +1847,11 @@ function renderCases() {
           <td><a class="case-link" onclick="openCaseDetail('${c.id}')">${c.case_number}</a></td>
           <td style="text-align:center">${cnt > 0 ? `<span class="resp-link" onclick="showMemberList(event,'${c.id}')">${cnt}</span>` : '<span class="muted">0</span>'}</td>
           <td style="white-space:nowrap">${fmt(c.date)}</td>
+          <td style="text-align:center">${c.submitted ? `<span title="${c.submitted_at ? new Date(c.submitted_at).toLocaleString() : ''}" style="color:#16a34a;font-size:16px">✔</span>` : '<span class="muted">—</span>'}</td>
           <td>${catBadge(c.case_cat)}</td>
           <td>${typeBadge(c.case_type)}</td>
           <td class="muted">${c.location ? `<span class="loc-link" onclick="showLocMap(event,'${(c.case_gps||'').replace(/'/g,"\\'")}','${(c.location||'').replace(/'/g,"\\'")}','${c.case_number||''}')">${c.location}</span>` : '—'}</td>
           <td class="muted">${fmtTime(c.case_time_begin)}</td>
-          <td class="muted">${fmtTime(c.case_time_end)}</td>
           <td class="muted" style="max-width:240px">${truncate(c.notes,70)}</td>
         </tr>`;
       }).join('')
@@ -2332,7 +2334,13 @@ async function openAddCase() {
   topBtn.style.display = '';
   modal.classList.add('open');
 
-  const sortedEmps = [...allEmployees].sort((a,b) => a.last_name.localeCompare(b.last_name));
+  const statusOrder = { 'Active':1, 'Admin':2, 'Rookie':3 };
+  const sortedEmps = [...allEmployees].sort((a, b) => {
+    const ao = statusOrder[a.status] || 99, bo = statusOrder[b.status] || 99;
+    if (ao !== bo) return ao - bo;
+    if (a.status === 'Rookie') return (a.call_no||'').localeCompare(b.call_no||'');
+    return (a.last_name||'').localeCompare(b.last_name||'');
+  });
   const empChecks = sortedEmps.map(e => `
     <label class="emp-list-item">
       <input type="checkbox" name="emp" value="${e.id}" onchange="updateEmpCount()">
@@ -2385,7 +2393,7 @@ async function openAddCase() {
       </div>
       <hr class="detail-divider">
       <div class="detail-field full">
-        <div class="detail-label">OCC (On Call Command) — Search calls only</div>
+        <div class="detail-label">OCC (On Call Command) — Search and Medical Call Outs</div>
         <select class="modal-input" id="f-occ">${occOptions}</select>
       </div>
       <div class="detail-field full">
@@ -2397,6 +2405,14 @@ async function openAddCase() {
       <div class="detail-field full">
         <div class="detail-label">Call Description / Notes</div>
         <textarea class="modal-input" id="f-notes" rows="4"></textarea>
+      </div>
+      <hr class="detail-divider">
+      <div class="detail-field full">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0">
+          <input type="checkbox" id="f-submitted" data-prev-submitted="false" data-prev-at=""
+            style="width:17px;height:17px;accent-color:var(--brand);cursor:pointer">
+          <span style="font-weight:600;font-size:13px;color:var(--text)">Submitted</span>
+        </label>
       </div>
     </div>`;
 }
@@ -2442,8 +2458,14 @@ async function openCaseDetail(caseId) {
     numSpan.textContent = c.case_number;
     const assignedIds = new Set(empRes.data.map(r => r.employee_id));
 
-    // Build employee checkboxes (sorted by last name)
-    const sortedEmps = [...allEmployees].sort((a,b) => a.last_name.localeCompare(b.last_name));
+    // Build employee checkboxes: Active (last name) → Admin (last name) → Rookie (call no)
+    const statusOrder = { 'Active':1, 'Admin':2, 'Rookie':3 };
+    const sortedEmps = [...allEmployees].sort((a, b) => {
+      const ao = statusOrder[a.status] || 99, bo = statusOrder[b.status] || 99;
+      if (ao !== bo) return ao - bo;
+      if (a.status === 'Rookie') return (a.call_no||'').localeCompare(b.call_no||'');
+      return (a.last_name||'').localeCompare(b.last_name||'');
+    });
     const empChecks = sortedEmps.map(e => `
       <label class="emp-list-item">
         <input type="checkbox" name="emp" value="${e.id}" ${assignedIds.has(e.id) ? 'checked' : ''} onchange="updateEmpCount()">
@@ -2508,7 +2530,7 @@ async function openCaseDetail(caseId) {
         </div>
         <hr class="detail-divider">
         <div class="detail-field full">
-          <div class="detail-label">OCC (On Call Command) — Search calls only</div>
+          <div class="detail-label">OCC (On Call Command) — Search and Medical Call Outs</div>
           <select class="modal-input" id="f-occ">${occOptions}</select>
         </div>
         <div class="detail-field full">
@@ -2520,6 +2542,17 @@ async function openCaseDetail(caseId) {
         <div class="detail-field full">
           <div class="detail-label">Call Description / Notes</div>
           <textarea class="modal-input" id="f-notes" rows="4">${(c.notes||'').replace(/</g,'&lt;')}</textarea>
+        </div>
+        <hr class="detail-divider">
+        <div class="detail-field full">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0">
+            <input type="checkbox" id="f-submitted" ${c.submitted ? 'checked' : ''}
+              data-prev-submitted="${c.submitted ? 'true' : 'false'}"
+              data-prev-at="${c.submitted_at || ''}"
+              style="width:17px;height:17px;accent-color:var(--brand);cursor:pointer">
+            <span style="font-weight:600;font-size:13px;color:var(--text)">Submitted</span>
+            ${c.submitted_at ? `<span style="font-size:11px;color:var(--muted)">on ${new Date(c.submitted_at).toLocaleDateString()}</span>` : ''}
+          </label>
         </div>
       </div>`;
 
@@ -2542,6 +2575,14 @@ async function saveCaseDetail() {
   btns.forEach(b => { b.disabled = true; b.textContent = 'Saving…'; });
 
   try {
+    const submittedEl  = document.getElementById('f-submitted');
+    const isSubmitted  = submittedEl?.checked || false;
+    const wasSubmitted = submittedEl?.dataset.prevSubmitted === 'true';
+    const prevAt       = submittedEl?.dataset.prevAt || null;
+    const submittedAt  = isSubmitted
+      ? (wasSubmitted && prevAt ? prevAt : new Date().toISOString())
+      : null;
+
     const payload = {
       case_number:     document.getElementById('f-case-number').value.trim(),
       date:            document.getElementById('f-date').value || null,
@@ -2553,6 +2594,8 @@ async function saveCaseDetail() {
       case_gps:        document.getElementById('f-gps').value.trim() || null,
       occ_employee_id: document.getElementById('f-occ').value || null,
       notes:           document.getElementById('f-notes').value.trim() || null,
+      submitted:       isSubmitted,
+      submitted_at:    submittedAt,
       updated_at:      new Date().toISOString(),
     };
 
@@ -2623,6 +2666,8 @@ async function saveCaseDetail() {
         occ_employee_id: payload.occ_employee_id,
         notes: payload.notes,
         responding_count: checkedIds.length,
+        submitted: payload.submitted,
+        submitted_at: payload.submitted_at,
       },
       changed_at: new Date().toISOString(),
     };
@@ -2631,6 +2676,22 @@ async function saveCaseDetail() {
       headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify(auditEntry),
     });
+
+    // Write a dedicated "submitted" audit entry when first marked submitted
+    if (isSubmitted && !wasSubmitted) {
+      await fetch(`${SUPABASE_URL}/rest/v1/case_audit_log`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          id: crypto.randomUUID(),
+          case_id: savedCaseId,
+          case_number: payload.case_number,
+          action: 'submitted',
+          snapshot: { submitted: true, submitted_at: submittedAt },
+          changed_at: submittedAt,
+        }),
+      });
+    }
 
     // Show success
     btns.forEach(b => { b.disabled = false; b.textContent = '💾 Save Changes'; });
@@ -2678,6 +2739,7 @@ async function toggleHistory() {
       case_number:'Case #', date:'Date', case_type:'Type', case_cat:'Category',
       case_time_begin:'Start', case_time_end:'End', location:'Location',
       case_gps:'GPS', notes:'Notes', responding_count:'Responding',
+      submitted:'Submitted', submitted_at:'Submitted On',
     };
 
     document.getElementById('history-entries').innerHTML = entries.map((e, i) => {
