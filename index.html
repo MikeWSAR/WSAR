@@ -143,6 +143,8 @@
     .chart-card canvas { max-height: 260px; }
 
     /* ── BELOW-40 TABLE ──────────────────── */
+    .export-btn { padding: 6px 14px; font-size: 12px; font-weight: 600; border: 1px solid var(--brand); border-radius: 6px; background: white; color: var(--brand); cursor: pointer; }
+    .export-btn:hover { background: var(--brand); color: white; }
     .b40-table { width: 100%; border-collapse: collapse; font-size: 13px; }
     .b40-table thead th {
       text-align: left; padding: 8px 10px; font-size: 11px;
@@ -901,6 +903,10 @@
         <div class="section-header">
           <h3>Team Roster</h3>
           <span class="count" id="roster-count"></span>
+          <div style="margin-left:auto;display:flex;gap:8px">
+            <button class="export-btn" onclick="exportRoster('csv')">⬇ CSV</button>
+            <button class="export-btn" onclick="exportRoster('pdf')">⬇ PDF</button>
+          </div>
         </div>
         <div class="filter-row">
           <select id="r-status">
@@ -929,6 +935,19 @@
 
   </div><!-- /content -->
 </div><!-- /main -->
+
+<!-- MEMBER PROFILE MODAL -->
+<div class="modal-overlay" id="member-profile-modal">
+  <div class="modal-box" style="max-width:520px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-case-num" id="mp-title">Member Profile</div>
+      </div>
+      <button class="modal-close" onclick="document.getElementById('member-profile-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body" id="mp-body" style="padding:20px 24px"></div>
+  </div>
+</div>
 
 <!-- CASES BY DAY MODAL -->
 <div class="chart-modal-overlay" id="cbd-modal">
@@ -1859,6 +1878,94 @@ function renderCases() {
 }
 
 // ── ROSTER ────────────────────────────────────────────────────────
+function openMemberProfile(empId) {
+  const e = allEmployees.find(x => x.id === empId);
+  if (!e) return;
+  document.getElementById('mp-title').textContent = `${e.call_no||''} — ${e.last_name||''}, ${e.first_name||''}`;
+  const row = (label, value) => value
+    ? `<div style="display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div style="width:140px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;flex-shrink:0">${label}</div>
+        <div style="font-size:14px;color:var(--text)">${value}</div>
+       </div>` : '';
+  document.getElementById('mp-body').innerHTML = `
+    <div style="margin-bottom:12px">${statusBadge(e.status)}</div>
+    ${row('Call #', e.call_no)}
+    ${row('First Name', e.first_name)}
+    ${row('Last Name', e.last_name)}
+    ${row('Cell Phone', e.phone)}
+    ${row('Email', e.email ? `<a href="mailto:${e.email}" style="color:var(--brand)">${e.email}</a>` : '')}
+    ${row('City', e.city)}
+    ${row('Address', e.address)}
+    ${row('Birthday', fmt(e.birthday))}
+    ${row('Hire Date', fmt(e.hire_date))}
+    ${row('Spouse', e.spouse)}
+    ${row('Spouse Phone', e.spouse_phone)}
+    ${row('Special Teams', e.special_teams)}
+  `;
+  document.getElementById('member-profile-modal').classList.add('open');
+}
+
+function getRosterRows() {
+  const status  = document.getElementById('r-status').value;
+  const rsearch = document.getElementById('r-search').value.toLowerCase();
+  let rows = allEmployees.filter(e => {
+    if (status && e.status !== status) return false;
+    if (rsearch && !`${e.first_name} ${e.last_name} ${e.call_no}`.toLowerCase().includes(rsearch)) return false;
+    return true;
+  });
+  const { col, dir } = rosterSort;
+  return [...rows].sort((a, b) => {
+    let av, bv;
+    if (col === 'call_no') { av = parseInt((a.call_no||'').replace(/\D/g,''))||0; bv = parseInt((b.call_no||'').replace(/\D/g,''))||0; }
+    else if (col === 'hire_date') { av = a.hire_date||''; bv = b.hire_date||''; }
+    else { av = (a[col]||'').toLowerCase(); bv = (b[col]||'').toLowerCase(); }
+    if (av < bv) return dir === 'asc' ? -1 : 1;
+    if (av > bv) return dir === 'asc' ?  1 : -1;
+    return 0;
+  });
+}
+
+function exportRoster(type) {
+  const rows = getRosterRows();
+  const headers = ['Call #','Last Name','First Name','Status','City','Hire Date','Cell'];
+  const getData = e => [e.call_no||'', e.last_name||'', e.first_name||'', e.status||'', e.city||'', e.hire_date ? new Date(e.hire_date).toLocaleDateString() : '', e.phone||''];
+
+  if (type === 'csv') {
+    const csv = [headers, ...rows.map(getData)]
+      .map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))
+      .join('\n');
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = `WSAR_Roster_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  } else {
+    // PDF via print
+    const tableRows = rows.map(e => {
+      const d = getData(e);
+      return `<tr>${d.map(v => `<td>${v}</td>`).join('')}</tr>`;
+    }).join('');
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html><head><title>WSAR Team Roster</title>
+      <style>
+        body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; }
+        h2 { margin-bottom: 4px; }
+        p { color: #666; margin-bottom: 12px; font-size: 11px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #1e40af; color: white; padding: 7px 10px; text-align: left; font-size: 11px; }
+        td { padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
+        tr:nth-child(even) td { background: #f8fafc; }
+        @media print { body { padding: 0; } }
+      </style></head><body>
+      <h2>WSAR Team Roster</h2>
+      <p>Exported ${new Date().toLocaleDateString()} — ${rows.length} member${rows.length!==1?'s':''}</p>
+      <table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${tableRows}</tbody></table>
+      <script>window.onload=()=>{window.print();}<\/script>
+      </body></html>`);
+    win.document.close();
+  }
+}
+
 function renderRoster() {
   const status  = document.getElementById('r-status').value;
   const rsearch = document.getElementById('r-search').value.toLowerCase();
@@ -1907,7 +2014,7 @@ function renderRoster() {
   document.getElementById('roster-count').textContent = `${rows.length} member${rows.length!==1?'s':''}`;
   document.getElementById('roster-tbody').innerHTML = rows.length
     ? rows.map(e => `<tr>
-        <td><strong>${e.call_no||'—'}</strong></td>
+        <td><a class="case-link" onclick="openMemberProfile('${e.id}')" style="cursor:pointer"><strong>${e.call_no||'—'}</strong></a></td>
         <td>${e.last_name||'—'}</td>
         <td>${e.first_name||'—'}</td>
         <td>${statusBadge(e.status)}</td>
@@ -2421,23 +2528,23 @@ async function openAddCase() {
         <textarea class="modal-input" id="f-notes" rows="4"></textarea>
       </div>
       <hr class="detail-divider">
-      <div class="detail-field full" style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
-        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0">
+      <div class="detail-field full" style="display:flex;align-items:center;gap:32px;flex-wrap:nowrap">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap">
+          <input type="checkbox" id="f-submitted" data-prev-submitted="false" data-prev-at=""
+            style="width:17px;height:17px;accent-color:var(--brand);cursor:pointer">
+          <span style="font-weight:600;font-size:13px;color:var(--text)">Submitted</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap">
           <input type="checkbox" id="f-had-expenses"
             style="width:17px;height:17px;accent-color:var(--brand);cursor:pointer"
             onchange="document.getElementById('f-exp-total-wrap').style.display=this.checked?'flex':'none'">
           <span style="font-weight:600;font-size:13px;color:var(--text)">Had Expenses</span>
         </label>
-        <div id="f-exp-total-wrap" style="display:none;align-items:center;gap:8px">
+        <div id="f-exp-total-wrap" style="display:none;align-items:center;gap:8px;white-space:nowrap">
           <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Exp Total</label>
           <input type="number" id="f-exp-total" min="0" step="0.01" placeholder="0.00"
-            class="modal-input" style="width:120px">
+            class="modal-input" style="width:110px">
         </div>
-        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0;margin-left:auto">
-          <input type="checkbox" id="f-submitted" data-prev-submitted="false" data-prev-at=""
-            style="width:17px;height:17px;accent-color:var(--brand);cursor:pointer">
-          <span style="font-weight:600;font-size:13px;color:var(--text)">Submitted</span>
-        </label>
       </div>
     </div>`;
 }
@@ -2569,19 +2676,8 @@ async function openCaseDetail(caseId) {
           <textarea class="modal-input" id="f-notes" rows="4">${(c.notes||'').replace(/</g,'&lt;')}</textarea>
         </div>
         <hr class="detail-divider">
-        <div class="detail-field full" style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
-          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0">
-            <input type="checkbox" id="f-had-expenses" ${c.had_expenses ? 'checked' : ''}
-              style="width:17px;height:17px;accent-color:var(--brand);cursor:pointer"
-              onchange="document.getElementById('f-exp-total-wrap').style.display=this.checked?'flex':'none'">
-            <span style="font-weight:600;font-size:13px;color:var(--text)">Had Expenses</span>
-          </label>
-          <div id="f-exp-total-wrap" style="display:${c.had_expenses ? 'flex' : 'none'};align-items:center;gap:8px">
-            <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Exp Total</label>
-            <input type="number" id="f-exp-total" min="0" step="0.01" placeholder="0.00"
-              class="modal-input" style="width:120px" value="${c.exp_total != null ? c.exp_total : ''}">
-          </div>
-          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0;margin-left:auto">
+        <div class="detail-field full" style="display:flex;align-items:center;gap:32px;flex-wrap:nowrap">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap">
             <input type="checkbox" id="f-submitted" ${c.submitted ? 'checked' : ''}
               data-prev-submitted="${c.submitted ? 'true' : 'false'}"
               data-prev-at="${c.submitted_at || ''}"
@@ -2589,6 +2685,17 @@ async function openCaseDetail(caseId) {
             <span style="font-weight:600;font-size:13px;color:var(--text)">Submitted</span>
             ${c.submitted_at ? `<span style="font-size:11px;color:var(--muted)">on ${new Date(c.submitted_at).toLocaleDateString()}</span>` : ''}
           </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap">
+            <input type="checkbox" id="f-had-expenses" ${c.had_expenses ? 'checked' : ''}
+              style="width:17px;height:17px;accent-color:var(--brand);cursor:pointer"
+              onchange="document.getElementById('f-exp-total-wrap').style.display=this.checked?'flex':'none'">
+            <span style="font-weight:600;font-size:13px;color:var(--text)">Had Expenses</span>
+          </label>
+          <div id="f-exp-total-wrap" style="display:${c.had_expenses ? 'flex' : 'none'};align-items:center;gap:8px;white-space:nowrap">
+            <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Exp Total</label>
+            <input type="number" id="f-exp-total" min="0" step="0.01" placeholder="0.00"
+              class="modal-input" style="width:110px" value="${c.exp_total != null ? c.exp_total : ''}">
+          </div>
         </div>
       </div>`;
 
