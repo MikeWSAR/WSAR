@@ -1383,12 +1383,10 @@ async function renderDashboard() {
       ? `<table class="b40-table">
           <thead><tr>
             <th>Employee</th>
-            <th>Total Cases</th>
             <th>Eligible %</th>
           </tr></thead>
           <tbody>${below.map(x => `<tr>
             <td>${x.e.last_name||''}, ${x.e.first_name||''}</td>
-            <td>${x.cnt}</td>
             <td style="color:#ef4444;font-weight:700;">${x.eligPct}%</td>
           </tr>`).join('')}</tbody>
         </table>`
@@ -2435,10 +2433,7 @@ async function openAddCase() {
           <input type="number" id="f-exp-total" min="0" step="0.01" placeholder="0.00"
             class="modal-input" style="width:120px">
         </div>
-      </div>
-      <hr class="detail-divider">
-      <div class="detail-field full">
-        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0;margin-left:auto">
           <input type="checkbox" id="f-submitted" data-prev-submitted="false" data-prev-at=""
             style="width:17px;height:17px;accent-color:var(--brand);cursor:pointer">
           <span style="font-weight:600;font-size:13px;color:var(--text)">Submitted</span>
@@ -2586,10 +2581,7 @@ async function openCaseDetail(caseId) {
             <input type="number" id="f-exp-total" min="0" step="0.01" placeholder="0.00"
               class="modal-input" style="width:120px" value="${c.exp_total != null ? c.exp_total : ''}">
           </div>
-        </div>
-        <hr class="detail-divider">
-        <div class="detail-field full">
-          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0;margin-left:auto">
             <input type="checkbox" id="f-submitted" ${c.submitted ? 'checked' : ''}
               data-prev-submitted="${c.submitted ? 'true' : 'false'}"
               data-prev-at="${c.submitted_at || ''}"
