@@ -720,10 +720,10 @@
         </div>
         <div class="stat-card">
           <div class="stat-top">
-            <div class="stat-icon-box sib-green">🎓</div>
-            <div class="label">Training Completion</div>
+            <div class="stat-icon-box sib-green">📊</div>
+            <div class="label">Team Mean Average <span class="info-icon col-tip-trigger" style="font-size:11px;">ⓘ<span class="col-tip">Mean of all Active & Rookie member Eligible % for TTM period</span></span></div>
           </div>
-          <div class="value" id="s-training">0%</div>
+          <div class="value" id="s-mean-avg">—</div>
         </div>
         <div class="stat-card" style="position:relative;">
           <div class="stat-top">
@@ -741,7 +741,7 @@
           <canvas id="chart-monthly"></canvas>
         </div>
         <div class="chart-card" style="display:flex;flex-direction:column;">
-          <h3>Members below 40%</h3>
+          <h3>Members below 35%</h3>
           <div id="below40-wrap" style="flex:1;overflow-y:auto;">
             <div class="b40-empty">Loading…</div>
           </div>
@@ -1303,15 +1303,17 @@ async function renderDashboard() {
     }
   } catch(e) { console.warn('Participation fetch failed:', e); }
 
-  // --- Team Average (mirrors Reporting: mean of member allPct = all / totalEligible) ---
+  // --- Team Mean Average (mirrors Reporting: mean of member allPct = all / totalEligible) ---
   if (totalEligible > 0 && activeEmps.length > 0) {
     const pcts = activeEmps.map(e => {
       const d = empData[e.id] || { all: 0 };
       return Math.round(d.all / totalEligible * 100);
     });
     const avg = Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length);
+    document.getElementById('s-mean-avg').textContent = avg + '%';
     document.getElementById('s-avg').textContent = avg + '%';
   } else {
+    document.getElementById('s-mean-avg').textContent = '—';
     document.getElementById('s-avg').textContent = '—';
   }
 
@@ -1374,7 +1376,7 @@ async function renderDashboard() {
         const eligPct = Math.round(d.all / totalEligible * 100);
         return { e, cnt: d.all, eligPct };
       })
-      .filter(x => x.eligPct < 40)
+      .filter(x => x.eligPct < 35)
       .sort((a, b) => b.eligPct - a.eligPct);
 
     document.getElementById('below40-wrap').innerHTML = below.length
@@ -1390,7 +1392,7 @@ async function renderDashboard() {
             <td style="color:#ef4444;font-weight:700;">${x.eligPct}%</td>
           </tr>`).join('')}</tbody>
         </table>`
-      : '<div class="b40-empty">✓ All members above 40%</div>';
+      : '<div class="b40-empty">✓ All members above 35%</div>';
   } else {
     document.getElementById('below40-wrap').innerHTML = '<div class="b40-empty">No cases in TTM period</div>';
   }
@@ -2208,6 +2210,20 @@ function renderCBD() {
 }
 
 // ── GPS PARSE ─────────────────────────────────────────────────────
+// Utah bounding box: lat 36.998–42.002, lon -114.053–-109.041
+function validateGPS(str) {
+  if (!str || !str.trim()) return null; // empty is OK
+  const parts = str.trim().split(/[\s,]+/).filter(Boolean);
+  if (parts.length !== 2) return 'GPS must be in "lat, lon" format (e.g. 40.3154, -111.4134)';
+  const lat = parseFloat(parts[0]);
+  let   lon = parseFloat(parts[1]);
+  if (isNaN(lat) || isNaN(lon)) return 'GPS must be numeric decimal values (e.g. 40.3154, -111.4134)';
+  if (lon > 0 && lon > 50) lon = -lon; // auto-correct positive longitude
+  if (lat < 36.998 || lat > 42.002) return `Latitude ${lat.toFixed(4)} is outside Utah (36.998 – 42.002)`;
+  if (lon < -114.053 || lon > -109.041) return `Longitude ${lon.toFixed(4)} is outside Utah (-114.053 – -109.041)`;
+  return null; // valid
+}
+
 function parseGPS(str) {
   if (!str || typeof str !== 'string') return null;
   if (/[a-zA-Z]{3,}/.test(str)) return null; // text like "SAR bldg"
@@ -2407,6 +2423,20 @@ async function openAddCase() {
         <textarea class="modal-input" id="f-notes" rows="4"></textarea>
       </div>
       <hr class="detail-divider">
+      <div class="detail-field full" style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0">
+          <input type="checkbox" id="f-had-expenses"
+            style="width:17px;height:17px;accent-color:var(--brand);cursor:pointer"
+            onchange="document.getElementById('f-exp-total-wrap').style.display=this.checked?'flex':'none'">
+          <span style="font-weight:600;font-size:13px;color:var(--text)">Had Expenses</span>
+        </label>
+        <div id="f-exp-total-wrap" style="display:none;align-items:center;gap:8px">
+          <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Exp Total</label>
+          <input type="number" id="f-exp-total" min="0" step="0.01" placeholder="0.00"
+            class="modal-input" style="width:120px">
+        </div>
+      </div>
+      <hr class="detail-divider">
       <div class="detail-field full">
         <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0">
           <input type="checkbox" id="f-submitted" data-prev-submitted="false" data-prev-at=""
@@ -2544,6 +2574,20 @@ async function openCaseDetail(caseId) {
           <textarea class="modal-input" id="f-notes" rows="4">${(c.notes||'').replace(/</g,'&lt;')}</textarea>
         </div>
         <hr class="detail-divider">
+        <div class="detail-field full" style="display:flex;align-items:center;gap:24px;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0">
+            <input type="checkbox" id="f-had-expenses" ${c.had_expenses ? 'checked' : ''}
+              style="width:17px;height:17px;accent-color:var(--brand);cursor:pointer"
+              onchange="document.getElementById('f-exp-total-wrap').style.display=this.checked?'flex':'none'">
+            <span style="font-weight:600;font-size:13px;color:var(--text)">Had Expenses</span>
+          </label>
+          <div id="f-exp-total-wrap" style="display:${c.had_expenses ? 'flex' : 'none'};align-items:center;gap:8px">
+            <label style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px">Exp Total</label>
+            <input type="number" id="f-exp-total" min="0" step="0.01" placeholder="0.00"
+              class="modal-input" style="width:120px" value="${c.exp_total != null ? c.exp_total : ''}">
+          </div>
+        </div>
+        <hr class="detail-divider">
         <div class="detail-field full">
           <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:4px 0">
             <input type="checkbox" id="f-submitted" ${c.submitted ? 'checked' : ''}
@@ -2575,6 +2619,31 @@ async function saveCaseDetail() {
   btns.forEach(b => { b.disabled = true; b.textContent = 'Saving…'; });
 
   try {
+    // GPS validation
+    const gpsVal = document.getElementById('f-gps')?.value.trim();
+    const gpsErr = validateGPS(gpsVal);
+    if (gpsErr) {
+      const gpsEl = document.getElementById('f-gps');
+      gpsEl.style.borderColor = '#ef4444';
+      gpsEl.focus();
+      // Show error below field
+      let errMsg = document.getElementById('gps-error-msg');
+      if (!errMsg) {
+        errMsg = document.createElement('div');
+        errMsg.id = 'gps-error-msg';
+        errMsg.style.cssText = 'color:#ef4444;font-size:12px;margin-top:4px';
+        gpsEl.parentNode.appendChild(errMsg);
+      }
+      errMsg.textContent = '⚠ ' + gpsErr;
+      btns.forEach(b => { b.disabled = false; b.textContent = '💾 Save Changes'; });
+      return;
+    } else {
+      const gpsEl = document.getElementById('f-gps');
+      if (gpsEl) gpsEl.style.borderColor = '';
+      const errMsg = document.getElementById('gps-error-msg');
+      if (errMsg) errMsg.remove();
+    }
+
     const submittedEl  = document.getElementById('f-submitted');
     const isSubmitted  = submittedEl?.checked || false;
     const wasSubmitted = submittedEl?.dataset.prevSubmitted === 'true';
@@ -2594,6 +2663,10 @@ async function saveCaseDetail() {
       case_gps:        document.getElementById('f-gps').value.trim() || null,
       occ_employee_id: document.getElementById('f-occ').value || null,
       notes:           document.getElementById('f-notes').value.trim() || null,
+      had_expenses:    document.getElementById('f-had-expenses')?.checked || false,
+      exp_total:       document.getElementById('f-had-expenses')?.checked
+                         ? (parseFloat(document.getElementById('f-exp-total')?.value) || null)
+                         : null,
       submitted:       isSubmitted,
       submitted_at:    submittedAt,
       updated_at:      new Date().toISOString(),
