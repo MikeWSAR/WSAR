@@ -1,0 +1,2640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SAR Tracker — Wasatch County</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --sidebar-w: 220px;
+      --brand: #1e40af;
+      --brand-light: #dbeafe;
+      --brand-dark: #1e3a8a;
+      --accent: #f59e0b;
+      --surface: #ffffff;
+      --bg: #f1f5f9;
+      --border: #e2e8f0;
+      --text: #0f172a;
+      --muted: #64748b;
+      --radius: 10px;
+      --shadow: 0 1px 4px rgba(0,0,0,.08), 0 4px 16px rgba(0,0,0,.06);
+    }
+
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden; }
+
+    /* ── SIDEBAR ─────────────────────────── */
+    #sidebar {
+      width: var(--sidebar-w); background: #0d1f35;
+      display: flex; flex-direction: column; flex-shrink: 0;
+      color: #fff; padding: 0;
+    }
+    #sidebar .logo {
+      padding: 20px 18px 16px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    #sidebar .logo h1 { font-size: 16px; font-weight: 700; letter-spacing: .3px; color: #e2e8f0; }
+    #sidebar .logo p  { font-size: 11px; color: #64a0c8; margin-top: 3px; }
+    #sidebar nav { flex: 1; padding: 12px 8px; }
+    #sidebar nav a {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px; border-radius: 7px; cursor: pointer;
+      font-size: 13.5px; color: #94b8d4; text-decoration: none;
+      transition: background .15s, color .15s; user-select: none;
+    }
+    #sidebar nav a .icon { font-size: 16px; width: 22px; text-align: center; opacity: .85; }
+    #sidebar nav a:hover { background: rgba(255,255,255,.07); color: #e2e8f0; }
+    #sidebar nav a.active { background: #1a3a5c; color: #fff; font-weight: 600; }
+    #sidebar nav a.active .icon { opacity: 1; }
+    #sidebar .status-bar {
+      padding: 14px 16px; font-size: 11px; color: #5a8aaa;
+      border-top: 1px solid rgba(255,255,255,.07);
+    }
+    #sidebar .status-bar span { display: block; }
+    #sidebar .status-bar .dot {
+      display: inline-block; width: 7px; height: 7px;
+      border-radius: 50%; background: #4ade80; margin-right: 6px;
+    }
+
+    /* ── MAIN ────────────────────────────── */
+    #main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    #topbar {
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      padding: 0 28px; height: 58px; display: flex; align-items: center;
+      justify-content: space-between; flex-shrink: 0;
+    }
+    #topbar .left { display: flex; align-items: center; gap: 12px; }
+    #ttm-wrap {
+      display: flex; align-items: center; gap: 8px;
+    }
+    #ttm-wrap label {
+      font-size: 12px; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .06em;
+    }
+    #ttm-date {
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 5px 10px; font-size: 13px; outline: none;
+      color: var(--text); background: var(--surface);
+      cursor: pointer;
+    }
+    #ttm-date:focus { border-color: var(--brand); }
+    #topbar h2 { font-size: 22px; font-weight: 700; letter-spacing: -.3px; }
+    #topbar .right { display: flex; align-items: center; gap: 12px; }
+    .refresh-btn {
+      background: transparent; color: var(--muted); border: 1px solid var(--border);
+      border-radius: 7px; padding: 6px 12px; font-size: 13px;
+      cursor: pointer; font-weight: 500; transition: all .15s;
+    }
+    .refresh-btn:hover { background: var(--brand); color: #fff; border-color: var(--brand); }
+
+    /* ── STAT CARD ICONS ─────────────────── */
+    .stat-card { flex-direction: column; gap: 0; }
+    .stat-top { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .stat-icon-box {
+      width: 40px; height: 40px; border-radius: 9px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 20px;
+    }
+    .sib-blue  { background: #dbeafe; }
+    .sib-teal  { background: #ccfbf1; }
+    .sib-green { background: #dcfce7; }
+    .sib-red   { background: #fee2e2; }
+    .stat-card .label { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+    .stat-card .value { font-size: 34px; font-weight: 800; color: var(--text); line-height: 1.1; }
+
+    #content { flex: 1; overflow-y: auto; padding: 24px 28px; }
+
+    /* ── CARDS ───────────────────────────── */
+    .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 900px) { .stat-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    .stat-card {
+      background: var(--surface); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 18px 20px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .stat-card .label { font-size: 12px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .5px; }
+    .stat-card .value { font-size: 30px; font-weight: 800; color: var(--text); }
+    .stat-card .sub { font-size: 12px; color: var(--muted); }
+    .stat-card .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 20px;
+      font-size: 11px; font-weight: 600;
+    }
+    .badge-blue   { background: #dbeafe; color: #1d4ed8; }
+    .badge-green  { background: #dcfce7; color: #15803d; }
+    .badge-amber  { background: #fef3c7; color: #b45309; }
+    .badge-red    { background: #fee2e2; color: #b91c1c; }
+    .badge-purple { background: #ede9fe; color: #7c3aed; }
+    .badge-gray   { background: #f1f5f9; color: #475569; }
+
+    /* ── CHART GRID ──────────────────────── */
+    .chart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+    .dash-grid  { grid-template-columns: 3fr 2fr; }
+    .chart-card {
+      background: var(--surface); border-radius: var(--radius);
+      box-shadow: var(--shadow); padding: 20px;
+    }
+    .chart-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+    .chart-card canvas { max-height: 260px; }
+
+    /* ── BELOW-40 TABLE ──────────────────── */
+    .b40-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .b40-table thead th {
+      text-align: left; padding: 8px 10px; font-size: 11px;
+      color: var(--muted); border-bottom: 1px solid var(--border);
+      font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+    }
+    .b40-table thead th:last-child { text-align: right; }
+    .b40-table tbody tr { border-bottom: 1px solid var(--border); }
+    .b40-table tbody tr:last-child { border-bottom: none; }
+    .b40-table tbody td { padding: 10px 10px; color: var(--text); }
+    .b40-table tbody td:nth-child(2) { text-align: center; color: var(--muted); }
+    .b40-table tbody td:last-child { text-align: right; font-weight: 700; color: #c0392b; }
+    .b40-empty { text-align: center; padding: 24px; color: var(--muted); font-size: 13px; }
+
+    /* ── SECTION CARD ────────────────────── */
+    .section-card {
+      background: var(--surface); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden;
+    }
+    .section-header {
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .section-header h3 { font-size: 15px; font-weight: 600; }
+    .section-header .count { font-size: 12px; color: var(--muted); }
+
+    /* ── TABLE ───────────────────────────── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      text-align: left; padding: 10px 16px; font-size: 11px;
+      text-transform: uppercase; letter-spacing: .5px; color: var(--muted);
+      background: var(--bg); border-bottom: 1px solid var(--border);
+      font-weight: 600; white-space: nowrap;
+    }
+    tbody tr { border-bottom: 1px solid var(--border); cursor: default; transition: background .1s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #f8fafc; }
+    tbody td { padding: 11px 16px; color: var(--text); }
+    tbody td.muted { color: var(--muted); }
+
+    /* ── FILTERS ─────────────────────────── */
+    .filter-row {
+      padding: 12px 20px; border-bottom: 1px solid var(--border);
+      display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    }
+    .filter-row select, .filter-row input {
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 10px; font-size: 13px; outline: none;
+      background: var(--surface); color: var(--text);
+    }
+    .filter-row select:focus, .filter-row input:focus { border-color: var(--brand); }
+
+    /* ── LOADER ──────────────────────────── */
+    .loader-wrap { text-align: center; padding: 60px 20px; color: var(--muted); }
+    .spinner {
+      display: inline-block; width: 28px; height: 28px;
+      border: 3px solid var(--border); border-top-color: var(--brand);
+      border-radius: 50%; animation: spin .7s linear infinite; margin-bottom: 10px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── HIDDEN ──────────────────────────── */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── CASE TYPE PILLS ─────────────────── */
+    .pill {
+      display: inline-block; padding: 2px 9px; border-radius: 20px;
+      font-size: 11px; font-weight: 600; white-space: nowrap;
+    }
+
+    /* ── SCORE BAR ───────────────────────── */
+    .score-bar-wrap { display: flex; align-items: center; gap: 8px; }
+    .score-bar { flex: 1; height: 6px; background: var(--border); border-radius: 3px; min-width: 60px; }
+    .score-bar-fill { height: 100%; border-radius: 3px; background: var(--brand); transition: width .4s; }
+    .score-num { font-size: 12px; color: var(--muted); width: 30px; text-align: right; }
+
+    /* ── SORTABLE HEADERS ────────────────── */
+    thead th.sortable {
+      cursor: pointer; user-select: none;
+      transition: color .15s, background .15s;
+    }
+    thead th.sortable:hover { color: var(--brand); background: #e8edf5; }
+    thead th.sort-asc, thead th.sort-desc { color: var(--brand); }
+    thead th .sort-arrow { margin-left: 4px; opacity: .4; font-size: 10px; }
+    thead th.sort-asc .sort-arrow,
+    thead th.sort-desc .sort-arrow { opacity: 1; }
+
+    /* ── ACTION BUTTONS ──────────────────── */
+    .action-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      border: 1px solid var(--border); background: var(--surface);
+      border-radius: 7px; padding: 6px 12px; font-size: 13px;
+      cursor: pointer; color: var(--text); font-weight: 500;
+      transition: background .15s, border-color .15s;
+    }
+    .action-btn:hover { background: var(--bg); border-color: #94a3b8; }
+    .action-btn.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+    .action-btn.primary:hover { background: var(--brand-dark); }
+    .section-header-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+    /* ── RESPONDING LINK ─────────────────── */
+    .resp-link {
+      color: var(--brand); font-weight: 700; cursor: pointer;
+      text-decoration: underline; text-underline-offset: 2px;
+    }
+    .resp-link:hover { color: var(--brand-dark); }
+
+    /* ── LOCATION LINK ───────────────────── */
+    .loc-link {
+      color: var(--brand); cursor: pointer;
+      text-decoration: underline; text-underline-offset: 2px;
+    }
+    .loc-link:hover { color: var(--brand-dark); }
+
+    /* ── MEMBER LIST POPUP ───────────────── */
+    .member-popup {
+      position: fixed; z-index: 9999;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.18);
+      padding: 12px 16px; min-width: 200px; max-width: 280px;
+      max-height: 320px; overflow-y: auto;
+    }
+    .member-popup h4 {
+      margin: 0 0 8px; font-size: .8rem; color: var(--muted);
+      text-transform: uppercase; letter-spacing: .05em;
+    }
+    .member-popup ul { margin: 0; padding: 0; list-style: none; }
+    .member-popup li { padding: 4px 0; border-bottom: 1px solid var(--border); font-size: .875rem; }
+    .member-popup li:last-child { border-bottom: none; }
+    .member-popup .call { font-weight: 600; color: var(--brand); margin-right: 6px; }
+    .member-popup .close-pop {
+      float: right; cursor: pointer; color: var(--muted);
+      font-size: 1rem; line-height: 1; margin-left: 8px;
+    }
+    .member-popup .close-pop:hover { color: var(--text); }
+
+
+    /* ── CHART MODAL ─────────────────────── */
+    .chart-modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .chart-modal-overlay.open { display: flex; }
+    .chart-modal {
+      background: var(--surface); border-radius: 14px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.22);
+      width: 780px; max-width: 95vw; max-height: 88vh;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .chart-modal-header {
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .chart-modal-header h3 { font-size: 16px; font-weight: 700; }
+    .chart-modal-body { padding: 24px; overflow-y: auto; }
+
+    /* ── LOCATION MINI-MAP POPUP ─────────── */
+    #loc-map-overlay {
+      display: none; position: fixed; inset: 0; z-index: 9900;
+      background: rgba(0,0,0,.5);
+      align-items: center; justify-content: center;
+    }
+    #loc-map-overlay.open { display: flex; }
+    #loc-map-wrap {
+      background: var(--surface); border-radius: 12px;
+      box-shadow: 0 16px 48px rgba(0,0,0,.4);
+      width: 500px; max-width: 96vw; overflow: hidden;
+    }
+    #loc-map-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px; border-bottom: 1px solid var(--border);
+    }
+    #loc-map-title { margin: 0; font-size: .95rem; font-weight: 700; }
+    #loc-map-el { height: 340px; }
+    #loc-map-footer {
+      padding: 10px 16px; border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px;
+    }
+    #loc-map-coords { font-size: .8rem; color: var(--muted); font-family: monospace; }
+    .caltopo-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: #c0392b; color: #fff; border: none;
+      padding: 7px 14px; border-radius: 6px; font-size: .85rem;
+      font-weight: 600; cursor: pointer; text-decoration: none;
+      white-space: nowrap;
+    }
+    .caltopo-btn:hover { background: #a93226; }
+
+    /* ── CASES BY DAY TABLE ──────────────── */
+    .cbd-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .cbd-table thead th {
+      text-align: left; padding: 10px 16px; color: var(--brand);
+      font-size: 13px; font-weight: 600; border-bottom: 2px solid var(--border);
+    }
+    .cbd-table thead th:not(:first-child) { text-align: center; }
+    .cbd-table tbody td { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+    .cbd-table tbody td:not(:first-child) { text-align: center; color: var(--muted); }
+    .cbd-table tbody tr:hover td { background: #f8fafc; }
+    .cbd-table tfoot td { padding: 14px 16px; font-weight: 700; border-top: 2px solid var(--border); font-size: 14px; }
+    .cbd-table tfoot td:not(:first-child) { text-align: center; }
+    .cbd-bar-cell { display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .cbd-bar { height: 6px; border-radius: 3px; background: var(--brand); min-width: 2px; }
+
+    /* ── MAP ─────────────────────────────── */
+    #map-container { height: 460px; width: 100%; border-radius: 8px; overflow: hidden; }
+    .map-table-wrap { margin-top: 16px; max-height: 260px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+    .map-table-wrap table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .map-table-wrap thead th { position: sticky; top: 0; background: var(--bg); padding: 8px 12px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+    .map-table-wrap tbody td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text); }
+    .map-table-wrap tbody tr:last-child td { border-bottom: none; }
+    .map-table-wrap tbody tr:hover { background: #f8fafc; cursor: pointer; }
+
+    /* ── REPORTING PAGE ──────────────────── */
+    .rep-top {
+      display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+    .rep-date-group { display: flex; flex-direction: column; gap: 3px; }
+    .rep-date-group label {
+      font-size: 11px; color: var(--muted); font-weight: 600;
+      text-transform: uppercase; letter-spacing: .05em;
+    }
+    .rep-date-group input {
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 6px 10px; font-size: 13px; outline: none; color: var(--text);
+    }
+    .rep-date-group input:focus { border-color: var(--brand); }
+    .rep-stat-boxes { display: flex; gap: 10px; flex: 1; flex-wrap: wrap; }
+    .rep-stat-box {
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 18px; background: var(--surface); min-width: 110px;
+    }
+    .rep-stat-box .rsl { font-size: 10.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+    .rep-stat-box .rsv { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1.2; }
+    .rep-stat-tooltip-wrap { position: relative; }
+    .info-icon { font-size: 11px; color: var(--brand); cursor: default; vertical-align: middle; }
+    .rep-stat-tooltip {
+      display: none; position: absolute; bottom: calc(100% + 8px); left: 50%;
+      transform: translateX(-50%); background: #1e293b; color: #fff;
+      font-size: 12px; font-weight: 500; white-space: nowrap;
+      padding: 6px 12px; border-radius: 6px; pointer-events: none; z-index: 999;
+      box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    }
+    .rep-stat-tooltip::after {
+      content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%);
+      border: 5px solid transparent; border-top-color: #1e293b;
+    }
+    .rep-stat-tooltip-wrap:hover .rep-stat-tooltip { display: block; }
+    .col-tip-trigger { position: relative; cursor: default; }
+    .col-tip {
+      display: none; position: absolute; top: calc(100% + 6px); left: 50%;
+      transform: translateX(-50%); background: #1e293b; color: #fff;
+      font-size: 11px; font-weight: 500; white-space: nowrap;
+      padding: 5px 10px; border-radius: 6px; pointer-events: none; z-index: 9999;
+      box-shadow: 0 2px 8px rgba(0,0,0,.25); text-transform: none; letter-spacing: 0;
+    }
+    .col-tip::after {
+      content: ''; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%);
+      border: 5px solid transparent; border-bottom-color: #1e293b;
+    }
+    .col-tip-trigger:hover .col-tip { display: block; }
+    .rep-search-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 14px; gap: 12px;
+    }
+    .rep-search-input {
+      flex: 1; max-width: 420px; border: 1px solid var(--border); border-radius: 8px;
+      padding: 9px 14px 9px 36px; font-size: 13.5px; outline: none;
+      background: var(--surface); color: var(--text);
+    }
+    .rep-search-input:focus { border-color: var(--brand); }
+    .rep-search-wrap { position: relative; flex: 1; max-width: 420px; }
+    .rep-search-icon {
+      position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+      color: var(--muted); font-size: 14px; pointer-events: none;
+    }
+    .rep-name-link { color: #0d9488; font-weight: 500; cursor: pointer; }
+    .rep-name-link:hover { text-decoration: underline; }
+    td.rep-all { font-weight: 700; color: var(--brand); }
+    .rep-page-title { font-size: 24px; font-weight: 800; letter-spacing: -.3px; margin-bottom: 18px; }
+    /* Make rep table compact */
+    #rep-thead th { white-space: normal; padding: 10px 12px; min-height: 56px; vertical-align: bottom; line-height: 1.3; }
+    #rep-tbody td { padding: 11px 12px; }
+
+    /* ── EMPTY STATE ─────────────────────── */
+    .empty { text-align: center; padding: 40px; color: var(--muted); font-size: 14px; }
+
+    /* ── ERROR BANNER ────────────────────── */
+    .error-banner {
+      background: #fee2e2; border: 1px solid #fca5a5; border-radius: 8px;
+      padding: 14px 18px; color: #991b1b; font-size: 13px; margin-bottom: 20px;
+    }
+
+    /* ── CASE LINK ───────────────────────── */
+    .case-link {
+      color: var(--brand); cursor: pointer; font-weight: 700;
+      text-decoration: none; border-bottom: 1px solid transparent;
+      transition: border-color .15s;
+    }
+    .case-link:hover { border-bottom-color: var(--brand); }
+
+    /* ── MODAL ───────────────────────────── */
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.45); z-index: 100;
+      align-items: center; justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--surface); border-radius: 14px;
+      box-shadow: 0 8px 40px rgba(0,0,0,.22);
+      width: 620px; max-width: 95vw; max-height: 90vh;
+      display: flex; flex-direction: column; overflow: hidden;
+    }
+    .modal-header {
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    .modal-header h3 { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+    .modal-header-actions { display: flex; align-items: center; gap: 8px; }
+    .modal-close {
+      background: none; border: none; font-size: 20px; cursor: pointer;
+      color: var(--muted); line-height: 1; padding: 2px 6px; border-radius: 6px;
+      transition: background .15s;
+    }
+    .modal-close:hover { background: var(--bg); color: var(--text); }
+    .modal-body { padding: 20px; overflow-y: auto; flex: 1; }
+    .modal-footer {
+      padding: 14px 20px; border-top: 1px solid var(--border);
+      display: flex; gap: 10px; flex-shrink: 0; background: var(--bg);
+    }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px; }
+    .detail-field { display: flex; flex-direction: column; gap: 5px; }
+    .detail-field.full { grid-column: 1 / -1; }
+    .detail-label {
+      font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .5px; color: var(--muted);
+    }
+    /* Form inputs inside modal */
+    .modal-input {
+      font-size: 14px; color: var(--text); padding: 8px 11px;
+      border: 1px solid var(--border); border-radius: 7px;
+      background: var(--surface); width: 100%; outline: none;
+      transition: border-color .15s; font-family: inherit;
+    }
+    .modal-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(30,64,175,.1); }
+    textarea.modal-input { resize: vertical; min-height: 80px; line-height: 1.5; }
+    select.modal-input { cursor: pointer; }
+    /* Employee checkbox list */
+    .emp-list {
+      border: 1px solid var(--border); border-radius: 7px;
+      max-height: 200px; overflow-y: auto; background: var(--surface);
+    }
+    .emp-list-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 12px; border-bottom: 1px solid var(--border);
+      cursor: pointer; transition: background .1s;
+    }
+    .emp-list-item:last-child { border-bottom: none; }
+    .emp-list-item:hover { background: var(--bg); }
+    .emp-list-item input[type=checkbox] { accent-color: var(--brand); width: 15px; height: 15px; flex-shrink: 0; cursor: pointer; }
+    .emp-list-item label { font-size: 13px; cursor: pointer; flex: 1; }
+    .emp-count { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .modal-loader { text-align: center; padding: 40px; color: var(--muted); }
+    .detail-divider { grid-column: 1/-1; border: none; border-top: 1px solid var(--border); margin: 2px 0; }
+    /* Save button */
+    .save-btn {
+      background: var(--brand); color: #fff; border: none;
+      border-radius: 7px; padding: 8px 20px; font-size: 14px;
+      font-weight: 600; cursor: pointer; transition: background .15s; flex: 1;
+    }
+    .save-btn:hover { background: var(--brand-dark); }
+    .save-btn:disabled { opacity: .6; cursor: not-allowed; }
+    .cancel-btn {
+      background: var(--bg); color: var(--muted); border: 1px solid var(--border);
+      border-radius: 7px; padding: 8px 18px; font-size: 14px;
+      font-weight: 500; cursor: pointer; transition: background .15s;
+    }
+    .cancel-btn:hover { background: var(--border); color: var(--text); }
+    .save-msg { font-size: 12px; color: #15803d; font-weight: 600; align-self: center; display: none; }
+
+    /* ── HISTORY ─────────────────────────── */
+    .history-toggle {
+      display: inline-flex; align-items: center; gap: 5px;
+      margin-top: 18px; font-size: 12px; color: var(--muted);
+      cursor: pointer; border: none; background: none; padding: 0;
+      text-decoration: underline; text-underline-offset: 2px;
+    }
+    .history-toggle:hover { color: var(--brand); }
+    .history-panel { margin-top: 10px; display: none; }
+    .history-panel.open { display: block; }
+    .history-entry {
+      display: flex; gap: 12px; padding: 10px 0;
+      border-bottom: 1px solid var(--border); font-size: 12px;
+    }
+    .history-entry:last-child { border-bottom: none; }
+    .history-dot {
+      width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex-shrink: 0;
+    }
+    .history-dot.created { background: #22c55e; }
+    .history-dot.updated { background: #3b82f6; }
+    .history-meta { flex: 1; }
+    .history-action { font-weight: 600; color: var(--text); text-transform: capitalize; }
+    .history-time { color: var(--muted); margin-top: 2px; }
+    .history-fields { color: var(--muted); margin-top: 4px; font-size: 11px; line-height: 1.6; }
+
+    /* ── MEMBER DETAIL MODAL ─────────────── */
+    #md-modal .chart-modal { width: 960px; max-width: 97vw; }
+    .md-filter-bar {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      margin-bottom: 16px; font-size: 13px;
+    }
+    .md-filter-bar .md-label { color: var(--muted); font-size: 12px; }
+    .md-filter-bar .md-dates { color: var(--text); }
+    .md-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: #e0f2fe; color: #0369a1; border-radius: 20px;
+      padding: 3px 10px; font-size: 12px; font-weight: 600;
+    }
+    .md-chip .chip-x { cursor: pointer; opacity: .6; font-size: 13px; line-height: 1; }
+    .md-chip .chip-x:hover { opacity: 1; }
+    .md-clear-btn {
+      border: none; background: none; color: var(--muted); cursor: pointer;
+      font-size: 12px; text-decoration: underline; padding: 0;
+    }
+    .md-clear-btn:hover { color: var(--text); }
+    /* ── LOGIN SCREEN ──────────────────────── */
+    #login-screen {
+      position: fixed; inset: 0; background: #0d1f35;
+      display: flex; align-items: center; justify-content: center; z-index: 9999;
+    }
+    #login-screen.hidden { display: none; }
+    .login-box {
+      background: #fff; border-radius: 16px; padding: 48px 44px;
+      width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,.4);
+      display: flex; flex-direction: column; align-items: center; gap: 0;
+    }
+    .login-logo { font-size: 40px; margin-bottom: 8px; }
+    .login-title { font-size: 22px; font-weight: 800; color: #0d1f35; margin-bottom: 4px; }
+    .login-sub { font-size: 13px; color: #64748b; margin-bottom: 32px; }
+    .login-field { width: 100%; margin-bottom: 16px; }
+    .login-field label { display: block; font-size: 12px; font-weight: 600; color: #475569; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .05em; }
+    .login-field input {
+      width: 100%; padding: 10px 14px; border: 1.5px solid #e2e8f0; border-radius: 8px;
+      font-size: 14px; color: #0f172a; outline: none; transition: border-color .15s;
+    }
+    .login-field input:focus { border-color: #1e40af; }
+    .login-btn {
+      width: 100%; padding: 11px; background: #1e40af; color: #fff; border: none;
+      border-radius: 8px; font-size: 15px; font-weight: 700; cursor: pointer;
+      margin-top: 8px; transition: background .15s;
+    }
+    .login-btn:hover { background: #1e3a8a; }
+    .login-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+    .login-error { color: #ef4444; font-size: 13px; margin-top: 12px; text-align: center; min-height: 18px; }
+    /* Role badge in topbar */
+    .role-badge {
+      font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 20px;
+      text-transform: uppercase; letter-spacing: .05em;
+    }
+    .role-Admin  { background: #fee2e2; color: #991b1b; }
+    .role-Board  { background: #dbeafe; color: #1e40af; }
+    .role-Member { background: #dcfce7; color: #166534; }
+    .logout-btn {
+      background: none; border: 1px solid rgba(255,255,255,.2); color: #94b8d4;
+      padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;
+      transition: background .15s;
+    }
+    .logout-btn:hover { background: rgba(255,255,255,.08); color: #fff; }
+    /* Clickable count links in reporting table */
+    .rep-count-link {
+      color: var(--brand); font-weight: 700; cursor: pointer; text-decoration: none;
+    }
+    .rep-count-link:hover { text-decoration: underline; }
+    .rep-count-link.muted-link {
+      color: var(--muted); font-weight: 400;
+    }
+    td.rep-type-count { color: var(--muted); }
+    td.rep-type-count .rep-count-link { color: var(--muted); font-weight: 500; }
+    td.rep-type-count .rep-count-link:hover { color: var(--brand); }
+  </style>
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">🚁</div>
+    <div class="login-title">SAR Tracker</div>
+    <div class="login-sub">Wasatch County Search &amp; Rescue</div>
+    <div class="login-field">
+      <label>Email</label>
+      <input type="email" id="login-email" placeholder="you@wasatchsar.org" autocomplete="email" />
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <button class="login-btn" id="login-btn" onclick="doLogin()">Sign In</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div class="logo">
+    <h1>🚁 SAR Tracker</h1>
+    <p>Wasatch County SAR</p>
+  </div>
+  <nav>
+    <a class="active" data-page="dashboard">
+      <span class="icon">📊</span> Dashboard
+    </a>
+    <a data-page="roster">
+      <span class="icon">👥</span> Members
+    </a>
+    <a data-page="cases">
+      <span class="icon">📋</span> Case Log
+    </a>
+    <a data-page="reporting">
+      <span class="icon">📈</span> Reporting
+    </a>
+  </nav>
+  <div class="status-bar">
+    <span><span class="dot"></span>Connected to Supabase</span>
+    <span style="margin-top:4px;opacity:.7;">Last refresh: <span id="last-refresh">—</span></span>
+    <div style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <span id="sidebar-role-badge"></span>
+      <button class="logout-btn" onclick="doLogout()">Sign Out</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+  <div id="topbar">
+    <div class="left">
+      <div id="ttm-wrap">
+        <label for="ttm-date">TTM</label>
+        <input type="date" id="ttm-date" />
+      </div>
+    </div>
+    <div class="right">
+      <button class="refresh-btn" onclick="loadAll()">↻ Refresh</button>
+      <h2 id="page-title">Dashboard</h2>
+    </div>
+  </div>
+
+  <div id="content">
+
+    <!-- DASHBOARD PAGE -->
+    <div id="page-dashboard" class="page active">
+      <div id="error-box" class="error-banner" style="display:none;"></div>
+
+      <!-- Stat cards -->
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-top">
+            <div class="stat-icon-box sib-blue">👥</div>
+            <div class="label">Active Members</div>
+          </div>
+          <div class="value" id="s-members">—</div>
+        </div>
+        <div class="stat-card" style="position:relative;">
+          <div class="stat-top">
+            <div class="stat-icon-box sib-teal">📋</div>
+            <div class="label">Total Call Outs <span class="info-icon col-tip-trigger" style="font-size:11px;">ⓘ<span class="col-tip">Searches and Medicals</span></span></div>
+          </div>
+          <div class="value" id="s-total">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-top">
+            <div class="stat-icon-box sib-green">🎓</div>
+            <div class="label">Training Completion</div>
+          </div>
+          <div class="value" id="s-training">0%</div>
+        </div>
+        <div class="stat-card" style="position:relative;">
+          <div class="stat-top">
+            <div class="stat-icon-box sib-red">↗</div>
+            <div class="label">Team Average <span class="info-icon col-tip-trigger" style="font-size:11px;">ⓘ<span class="col-tip">Team Average is mean of all member Eligible %</span></span></div>
+          </div>
+          <div class="value" id="s-avg">—</div>
+        </div>
+      </div>
+
+      <!-- Charts -->
+      <div class="chart-grid dash-grid">
+        <div class="chart-card">
+          <h3>Total Call Outs by Month</h3>
+          <canvas id="chart-monthly"></canvas>
+        </div>
+        <div class="chart-card" style="display:flex;flex-direction:column;">
+          <h3>Members below 40%</h3>
+          <div id="below40-wrap" style="flex:1;overflow-y:auto;">
+            <div class="b40-empty">Loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- REPORTING PAGE -->
+    <div id="page-reporting" class="page">
+      <div class="rep-page-title">Reporting</div>
+
+      <!-- Top controls row -->
+      <div class="rep-top">
+        <div class="rep-date-group">
+          <label>From</label>
+          <input type="date" id="rep-from" onchange="loadReporting()">
+        </div>
+        <div class="rep-date-group">
+          <label>To</label>
+          <input type="date" id="rep-to" onchange="loadReporting()">
+        </div>
+        <div class="rep-stat-boxes">
+          <div class="rep-stat-box rep-stat-tooltip-wrap">
+            <div class="rsl">Total Searches <span class="info-icon">ⓘ</span></div>
+            <div class="rsv" id="rep-total-searches">—</div>
+            <div class="rep-stat-tooltip">Searches and medical call outs</div>
+          </div>
+          <div class="rep-stat-box rep-stat-tooltip-wrap">
+            <div class="rsl">Total Training <span class="info-icon">ⓘ</span></div>
+            <div class="rsv" id="rep-total-training">—</div>
+            <div class="rep-stat-tooltip">Regular training does not include Core Training TC or Extra Training TE</div>
+          </div>
+          <div class="rep-stat-box rep-stat-tooltip-wrap">
+            <div class="rsl">Total Cases <span class="info-icon">ⓘ</span></div>
+            <div class="rsv" id="rep-total-cases">—</div>
+            <div class="rep-stat-tooltip">Total Cases is Type = S + T + TC + TE. Training Extra are included.</div>
+          </div>
+          <div class="rep-stat-box rep-stat-tooltip-wrap">
+            <div class="rsl">Total Eligible Cases <span class="info-icon">ⓘ</span></div>
+            <div class="rsv" id="rep-total-eligible">—</div>
+            <div class="rep-stat-tooltip">Eligible is Type = S + T + TC</div>
+          </div>
+          <div class="rep-stat-box rep-stat-tooltip-wrap">
+            <div class="rsl">Team Average <span class="info-icon">ⓘ</span></div>
+            <div class="rsv" id="rep-team-avg">—</div>
+            <div class="rep-stat-tooltip">Team Average is mean of all member Eligible %</div>
+          </div>
+        </div>
+        <button class="action-btn" onclick="exportReporting()">⬇ Export</button>
+      </div>
+
+      <!-- Search + Project Preview -->
+      <div class="rep-search-row">
+        <div class="rep-search-wrap">
+          <span class="rep-search-icon">🔍</span>
+          <input type="text" class="rep-search-input" id="rep-search" placeholder="Search employee…" oninput="renderRepRows()">
+        </div>
+        <button class="action-btn">Project preview</button>
+      </div>
+
+      <!-- Table -->
+      <div class="section-card">
+        <div class="table-wrap">
+          <table>
+            <thead><tr id="rep-thead">
+              <th class="sortable" data-col="rank">Rank <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="last_name">Last Name <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="first_name">First Name <span class="sort-arrow">↕</span></th>
+              <th>Team Eligible</th>
+              <th class="sortable" data-col="all" style="position:relative;">
+                All <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Member Total Type = S+T+TC+TE</span></span>
+              </th>
+              <th class="sortable" data-col="eligible" style="position:relative;">
+                Eligible <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Member Eligible is Type = S+T+TC</span></span>
+              </th>
+              <th class="sortable" data-col="allPct" style="position:relative;">
+                Eligible % <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Member All divided by Team Eligible</span></span>
+              </th>
+              <th class="sortable" data-col="searches" style="position:relative;">
+                Searches <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Searches and medical call outs</span></span>
+              </th>
+              <th class="sortable" data-col="searchPct">Search % <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="training" style="position:relative;">
+                Training <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Regular training does not include Core Training TC or Extra Training TE</span></span>
+              </th>
+              <th class="sortable" data-col="trainPct">Train % <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="coreTrain">Core Train <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="corePct">Core % <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="trainExt">Train Ext <span class="sort-arrow">↕</span></th>
+            </tr></thead>
+            <tbody id="rep-tbody">
+              <tr><td colspan="13"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- CASES PAGE -->
+    <div id="page-cases" class="page">
+      <div class="section-card">
+        <div class="section-header">
+          <h3>All Cases <span class="count" id="cases-count" style="font-weight:400;font-size:13px;margin-left:6px;"></span></h3>
+          <div class="section-header-actions">
+            <button class="action-btn" onclick="exportCasesCSV()">⬇ Export</button>
+            <button class="action-btn" onclick="openCasesByDay()">📅 Cases by Day</button>
+            <button class="action-btn" onclick="openHeatmap()">🗓 Heatmap</button>
+            <button class="action-btn primary admin-only" onclick="openAddCase()">＋ Add Case</button>
+          </div>
+        </div>
+        <div class="filter-row">
+          <select id="f-cat">
+            <option value="">All Categories</option>
+            <option>Search</option><option>Medical</option>
+            <option>Training</option><option>Other</option>
+          </select>
+          <select id="f-type">
+            <option value="">All Types</option>
+            <option value="S">S – Search</option>
+            <option value="T">T – Training</option>
+            <option value="TC">TC</option>
+            <option value="TE">TE</option>
+            <option value="O">O – Other</option>
+            <option value="NA">NA</option>
+          </select>
+          <input type="text" id="f-member" placeholder="Member: call # or last name…" style="min-width:200px" />
+          <input type="date" id="f-from" title="From date" />
+          <input type="date" id="f-to"   title="To date" />
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr id="cases-thead">
+              <th class="sortable" data-col="case_number">Case # <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="_resp_count">Responding <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="date">Date <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="case_cat">Category <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="case_type">Type <span class="sort-arrow">↕</span></th>
+              <th>Location</th><th>Start</th><th>End</th><th>Notes</th>
+            </tr></thead>
+            <tbody id="cases-tbody">
+              <tr><td colspan="9"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROSTER PAGE -->
+    <div id="page-roster" class="page">
+      <div class="section-card">
+        <div class="section-header">
+          <h3>Team Roster</h3>
+          <span class="count" id="roster-count"></span>
+        </div>
+        <div class="filter-row">
+          <select id="r-status">
+            <option value="">All Status</option>
+            <option>Active</option><option>Rookie</option><option>Admin</option><option>Inactive</option><option>Retired</option>
+          </select>
+          <input type="text" id="r-search" placeholder="Search by name or call #…" />
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr id="roster-thead">
+              <th class="sortable" data-col="call_no">Call # <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="last_name">Last Name <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="first_name">First Name <span class="sort-arrow">↕</span></th>
+              <th>Status</th><th>City</th>
+              <th class="sortable" data-col="hire_date">Hired <span class="sort-arrow">↕</span></th>
+              <th>Cell</th>
+            </tr></thead>
+            <tbody id="roster-tbody">
+              <tr><td colspan="7"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<!-- CASES BY DAY MODAL -->
+<div class="chart-modal-overlay" id="cbd-modal">
+  <div class="chart-modal" style="width:680px">
+    <div class="chart-modal-header">
+      <h3 id="cbd-title">📅 Cases by Day</h3>
+      <button class="modal-close" onclick="document.getElementById('cbd-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="chart-modal-body">
+      <div style="margin-bottom:18px">
+        <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Date range</div>
+        <div style="display:flex;gap:10px;align-items:center">
+          <input type="date" id="cbd-from" class="modal-input" style="width:160px" oninput="renderCBD()">
+          <span style="color:var(--muted)">—</span>
+          <input type="date" id="cbd-to" class="modal-input" style="width:160px" oninput="renderCBD()">
+        </div>
+      </div>
+      <div id="cbd-table-wrap"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAP MODAL -->
+<div class="chart-modal-overlay" id="hm-modal">
+  <div class="chart-modal" style="width:1100px;max-width:96vw">
+    <div class="chart-modal-header">
+      <h3 id="map-modal-title">📍 Case Map</h3>
+      <button class="modal-close" onclick="closeMapModal()">✕</button>
+    </div>
+    <div class="chart-modal-body" style="padding:16px">
+      <div id="map-container"></div>
+      <div class="map-table-wrap" id="map-table-wrap"></div>
+    </div>
+  </div>
+</div>
+
+<!-- LOCATION MINI-MAP POPUP -->
+<div id="loc-map-overlay" onclick="if(event.target===this)closeLocMap()">
+  <div id="loc-map-wrap">
+    <div id="loc-map-header">
+      <h4 id="loc-map-title">📍 Location</h4>
+      <span style="cursor:pointer;font-size:1.2rem;color:var(--muted)" onclick="closeLocMap()">✕</span>
+    </div>
+    <div id="loc-map-el"></div>
+    <div id="loc-map-footer">
+      <span id="loc-map-coords"></span>
+      <a id="caltopo-link" href="#" target="_blank" class="caltopo-btn">
+        🗺 Open in CalTopo
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- CASE DETAIL MODAL -->
+<div class="modal-overlay" id="case-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>✏️ <span id="modal-case-num">Edit Case Record</span></h3>
+      <div class="modal-header-actions">
+        <button class="save-btn admin-only" id="save-btn-top" onclick="saveCaseDetail()">💾 Save Changes</button>
+        <button class="modal-close" onclick="closeCaseModal()">✕</button>
+      </div>
+    </div>
+    <div class="modal-body" id="modal-body">
+      <div class="modal-loader"><div class="spinner"></div><br>Loading…</div>
+    </div>
+    <div class="modal-footer" id="modal-footer" style="display:none">
+      <button class="save-btn admin-only" onclick="saveCaseDetail()">💾 Save Changes</button>
+      <button class="cancel-btn" onclick="closeCaseModal()">Cancel</button>
+      <span class="save-msg" id="save-msg">✓ Saved!</span>
+      <button class="history-toggle" id="history-toggle" onclick="toggleHistory()" style="margin-left:auto">📜 View History</button>
+    </div>
+    <div id="history-panel" class="history-panel" style="padding: 0 20px 16px; display:none;">
+      <div id="history-entries"><div class="modal-loader" style="padding:20px"><div class="spinner"></div></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MEMBER DETAIL MODAL -->
+<div class="chart-modal-overlay" id="md-modal">
+  <div class="chart-modal" style="max-height:90vh">
+    <div class="chart-modal-header">
+      <h3 id="md-title">Case Log</h3>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="action-btn" onclick="exportMemberDetail()">⬇ Export</button>
+        <button class="modal-close" onclick="document.getElementById('md-modal').classList.remove('open')">✕</button>
+      </div>
+    </div>
+    <div class="chart-modal-body" style="padding:16px 20px">
+      <div class="md-filter-bar">
+        <span class="md-label">Date range:</span>
+        <span class="md-dates" id="md-date-display"></span>
+        <button class="md-clear-btn" onclick="clearMdTypeFilter()">Clear</button>
+        <span class="md-chip" id="md-type-chip" style="display:none">
+          <span id="md-chip-label"></span>
+          <span class="chip-x" onclick="clearMdTypeFilter()">×</span>
+        </span>
+      </div>
+      <div class="table-wrap" style="max-height:65vh;overflow-y:auto">
+        <table>
+          <thead><tr>
+            <th>Case #</th>
+            <th class="sortable" data-col="date" id="md-date-th" style="cursor:pointer">Date <span class="sort-arrow">↓</span></th>
+            <th>Type</th>
+            <th>Cat</th>
+            <th>Time</th>
+            <th>Location</th>
+            <th>Call Description</th>
+          </tr></thead>
+          <tbody id="md-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────
+const SUPABASE_URL  = 'https://qvakbmdwmnlfdippkdyz.supabase.co';
+const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2YWtibWR3bW5sZmRpcHBrZHl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MzU5MDgsImV4cCI6MjA5ODMxMTkwOH0.c2Zc3pPBEX0_MEEm_PJZJ1N78AePj7Pk1yGcU0yxnu4';
+
+// Auth state — populated after login
+let authToken  = null;   // user's JWT from Supabase Auth
+let currentRole = null;  // 'Admin' | 'Board' | 'Member'
+let currentUser = null;  // auth user object
+
+// Always send anon key as apikey; swap Bearer to user token once logged in
+function getHeaders() {
+  return {
+    apikey: SUPABASE_KEY,
+    Authorization: `Bearer ${authToken || SUPABASE_KEY}`,
+  };
+}
+// Keep legacy `headers` working for any remaining direct uses
+Object.defineProperty(window, 'headers', { get: () => getHeaders() });
+
+// ── AUTH FUNCTIONS ────────────────────────────────────────────────
+async function doLogin() {
+  const email    = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl    = document.getElementById('login-error');
+  const btn      = document.getElementById('login-btn');
+  errEl.textContent = '';
+  if (!email || !password) { errEl.textContent = 'Please enter email and password.'; return; }
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error_description || data.msg || 'Login failed');
+    authToken  = data.access_token;
+    currentUser = data.user;
+    // Fetch role
+    const roleRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/user_roles?user_id=eq.${currentUser.id}&select=role`,
+      { headers: getHeaders() }
+    );
+    const roleData = await roleRes.json();
+    currentRole = roleData[0]?.role || null;
+    if (!currentRole) throw new Error('No role assigned. Contact your administrator.');
+    // Show app
+    document.getElementById('login-screen').classList.add('hidden');
+    applyRoleUI();
+    loadAll();
+  } catch(e) {
+    errEl.textContent = e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Sign In';
+  }
+}
+
+function doLogout() {
+  authToken = null; currentRole = null; currentUser = null;
+  document.getElementById('login-email').value = '';
+  document.getElementById('login-password').value = '';
+  document.getElementById('login-error').textContent = '';
+  document.getElementById('login-screen').classList.remove('hidden');
+}
+
+function applyRoleUI() {
+  // Role badge in sidebar
+  const badge = document.getElementById('sidebar-role-badge');
+  badge.innerHTML = `<span class="role-badge role-${currentRole}">${currentRole}</span>`;
+  // Hide write controls for non-Admin
+  const canEdit = currentRole === 'Admin';
+  document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = canEdit ? '' : 'none';
+  });
+}
+
+// Allow Enter key on login form
+document.addEventListener('DOMContentLoaded', () => {
+  ['login-email','login-password'].forEach(id => {
+    document.getElementById(id)?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') doLogin();
+    });
+  });
+});
+
+// ── FETCH HELPER ─────────────────────────────────────────────────
+async function sb(path, params = {}) {
+  const qs = new URLSearchParams(params).toString();
+  const url = `${SUPABASE_URL}/rest/v1/${path}${qs ? '?' + qs : ''}`;
+  const res = await fetch(url, { headers: { ...headers, 'Prefer': 'count=exact' } });
+  if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+  return { data: await res.json(), count: parseInt(res.headers.get('Content-Range')?.split('/')[1] || '0') };
+}
+
+// ── CACHED DATA ───────────────────────────────────────────────────
+let allCases = [], allEmployees = [];
+let caseEmpCounts = {};   // { case_id: count }
+let monthlyChart, cbdChart;
+
+// ── TTM DATE (default: today) ─────────────────────────────────────
+(function initTTM() {
+  const el = document.getElementById('ttm-date');
+  el.value = new Date().toISOString().slice(0, 10);
+  el.addEventListener('change', () => renderDashboard());
+})();
+
+// ── SORT STATE ────────────────────────────────────────────────────
+let casesSort  = { col: 'date', dir: 'desc' };
+let rosterSort = { col: 'call_no', dir: 'asc' };
+
+// ── MEMBER FILTER STATE ───────────────────────────────────────────
+let memberFilterCaseIds = null;  // null = no filter; Set = matched case ids
+let memberFilterTimer   = null;
+
+// ── NAV ───────────────────────────────────────────────────────────
+const pages = { dashboard: document.getElementById('page-dashboard'),
+                cases:     document.getElementById('page-cases'),
+                roster:    document.getElementById('page-roster'),
+                reporting: document.getElementById('page-reporting') };
+const navLinks = document.querySelectorAll('#sidebar nav a');
+
+function navigate(page) {
+  navLinks.forEach(a => a.classList.toggle('active', a.dataset.page === page));
+  Object.entries(pages).forEach(([k, el]) => el.classList.toggle('active', k === page));
+  document.getElementById('page-title').textContent =
+    { dashboard: 'Dashboard', cases: 'Case Log', roster: 'Members', reporting: 'Reporting' }[page] || page;
+  document.getElementById('ttm-wrap').style.display = page === 'dashboard' ? '' : 'none';
+  if (page === 'cases')     renderCases();
+  if (page === 'roster')    renderRoster();
+  if (page === 'dashboard') renderDashboard();
+  if (page === 'reporting') loadReporting();
+}
+navLinks.forEach(a => a.addEventListener('click', () => navigate(a.dataset.page)));
+
+// ── BADGE HELPERS ─────────────────────────────────────────────────
+function catBadge(cat) {
+  const m = { Search:'badge-blue', Medical:'badge-red', Training:'badge-green', Other:'badge-gray' };
+  return `<span class="pill ${m[cat]||'badge-gray'}">${cat||'—'}</span>`;
+}
+function typeBadge(t) {
+  const m = { S:'badge-blue', T:'badge-green', TC:'badge-purple', TE:'badge-amber', O:'badge-gray', NA:'badge-gray' };
+  return t ? `<span class="pill ${m[t]||'badge-gray'}">${t}</span>` : '<span class="muted">—</span>';
+}
+function statusBadge(s) {
+  const map = {
+    'Active':   'badge-green',
+    'Rookie':   'badge-blue',
+    'Admin':    'badge-purple',
+    'Inactive': 'badge-gray',
+    'Retired':  'badge-amber',
+  };
+  return `<span class="pill ${map[s] || 'badge-gray'}">${s || 'Unknown'}</span>`;
+}
+function scoreBar(val) {
+  const pct = Math.min(100, Math.max(0, parseFloat(val) || 0));
+  return `<div class="score-bar-wrap">
+    <div class="score-bar"><div class="score-bar-fill" style="width:${pct}%"></div></div>
+    <span class="score-num">${pct.toFixed(0)}%</span>
+  </div>`;
+}
+function fmt(date) {
+  if (!date) return '—';
+  return new Date(date + 'T00:00:00').toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+}
+function fmtTime(t) { return t ? t.slice(0,5) : '—'; }
+function truncate(s, n=60) { return s && s.length > n ? s.slice(0,n)+'…' : (s||''); }
+
+// ── LOAD ALL DATA ─────────────────────────────────────────────────
+async function loadAll() {
+  memberFilterCaseIds = null;
+  const mf = document.getElementById('f-member');
+  if (mf) mf.value = '';
+  document.getElementById('error-box').style.display = 'none';
+  try {
+    const [casesRes, empRes, countsRes] = await Promise.all([
+      sb('case1', { select: '*', order: 'date.desc', limit: 1000 }),
+      sb('employees', { select: '*', order: 'last_name.asc', limit: 500 }),
+      sb('case_employee_counts', { select: 'case_id,count' }),
+    ]);
+    allCases     = casesRes.data;
+    allEmployees = empRes.data;
+    // Build count map from aggregated view (one row per case)
+    caseEmpCounts = {};
+    countsRes.data.forEach(r => { caseEmpCounts[r.case_id] = r.count; });
+    // Attach counts to cases for sorting
+    allCases.forEach(c => { c._resp_count = caseEmpCounts[c.id] || 0; });
+    renderDashboard();
+    renderCases();
+    renderRoster();
+    document.getElementById('last-refresh').textContent = new Date().toLocaleTimeString();
+  } catch(e) {
+    const box = document.getElementById('error-box');
+    box.style.display = '';
+    box.textContent = '⚠️ Could not load data: ' + e.message +
+      ' — Check Supabase RLS policies allow anon reads, or open the app while logged in.';
+    console.error(e);
+  }
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────────
+async function renderDashboard() {
+  // --- TTM date range ---
+  const endStr   = document.getElementById('ttm-date').value || new Date().toISOString().slice(0,10);
+  const endDate  = new Date(endStr + 'T00:00:00');
+  const startDate = new Date(endDate);
+  startDate.setFullYear(startDate.getFullYear() - 1);
+  startDate.setDate(startDate.getDate() + 1);
+  const startStr = startDate.toISOString().slice(0, 10);
+
+  // --- Filter cases to TTM ---
+  const ttmCases = allCases.filter(c => c.date >= startStr && c.date <= endStr);
+  const ttmTotal = ttmCases.length;
+
+  // --- Stat: Active Members (Active + Rookie only, not Admin) ---
+  const activeEmps = allEmployees.filter(e => ['Active','Rookie'].includes(e.status));
+  document.getElementById('s-members').textContent = activeEmps.length;
+  document.getElementById('s-total').textContent   = ttmTotal.toLocaleString();
+
+  // --- Eligible case counts for TTM (mirrors Reporting logic) ---
+  const ttmEligible = ttmCases.filter(c => ['S','T','TC'].includes(c.case_type));
+  const totalEligible = ttmEligible.length; // S+T+TC denominator
+
+  // Build caseType lookup for TTM cases
+  const ttmCaseTypeMap = {};
+  ttmCases.forEach(c => { ttmCaseTypeMap[c.id] = c.case_type; });
+
+  // --- Fetch member participation for TTM ---
+  // empData[employee_id] = { all: 0 }  (all = S+T+TC+TE attended)
+  let empData = {}; // { employee_id: { all } }
+  try {
+    if (ttmCases.length > 0) {
+      const ids = ttmCases.map(c => c.id);
+      for (let i = 0; i < ids.length; i += 60) {
+        const chunk = ids.slice(i, i + 60);
+        const res = await fetch(
+          `${SUPABASE_URL}/rest/v1/case1_employees?select=employee_id,case_id&case_id=in.(${chunk.join(',')})`,
+          { headers: { ...headers, 'Range': '0-9999' } }
+        );
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          data.forEach(r => {
+            const ct = ttmCaseTypeMap[r.case_id];
+            if (!['S','T','TC','TE'].includes(ct)) return;
+            if (!empData[r.employee_id]) empData[r.employee_id] = { all: 0 };
+            empData[r.employee_id].all++;
+          });
+        }
+      }
+    }
+  } catch(e) { console.warn('Participation fetch failed:', e); }
+
+  // --- Team Average (mirrors Reporting: mean of member allPct = all / totalEligible) ---
+  if (totalEligible > 0 && activeEmps.length > 0) {
+    const pcts = activeEmps.map(e => {
+      const d = empData[e.id] || { all: 0 };
+      return Math.round(d.all / totalEligible * 100);
+    });
+    const avg = Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length);
+    document.getElementById('s-avg').textContent = avg + '%';
+  } else {
+    document.getElementById('s-avg').textContent = '—';
+  }
+
+  // --- Call Outs by Month line chart ---
+  // Build 12 monthly buckets
+  const buckets = [];
+  {
+    let cur = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    const last = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+    while (cur <= last) {
+      const ym = `${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}`;
+      const lbl = cur.toLocaleDateString('en-US', { month: 'short' });
+      buckets.push({ ym, lbl, count: 0 });
+      cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
+    }
+  }
+  ttmCases.forEach(c => {
+    if (!c.date) return;
+    const ym = c.date.slice(0, 7);
+    const b  = buckets.find(x => x.ym === ym);
+    if (b) b.count++;
+  });
+
+  if (monthlyChart) monthlyChart.destroy();
+  monthlyChart = new Chart(document.getElementById('chart-monthly'), {
+    type: 'line',
+    data: {
+      labels: buckets.map(b => b.lbl),
+      datasets: [{
+        data: buckets.map(b => b.count),
+        borderColor: '#2563eb',
+        backgroundColor: 'rgba(37,99,235,.07)',
+        pointBackgroundColor: '#2563eb',
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        borderWidth: 2.5,
+        fill: true,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} cases` } }
+      },
+      scales: {
+        y: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: '#e2e8f0' } },
+        x: { grid: { display: false } }
+      }
+    }
+  });
+
+  // --- Members below 40% (eligible % = all / totalEligible, mirrors Reporting) ---
+  // Exclude members hired within the TTM window (start date < 1 year before TTM end)
+  const qualifiedEmps = activeEmps.filter(e => !e.hire_date || e.hire_date <= startStr);
+  if (totalEligible > 0) {
+    const below = qualifiedEmps
+      .map(e => {
+        const d = empData[e.id] || { all: 0 };
+        const eligPct = Math.round(d.all / totalEligible * 100);
+        return { e, cnt: d.all, eligPct };
+      })
+      .filter(x => x.eligPct < 40)
+      .sort((a, b) => b.eligPct - a.eligPct);
+
+    document.getElementById('below40-wrap').innerHTML = below.length
+      ? `<table class="b40-table">
+          <thead><tr>
+            <th>Employee</th>
+            <th>Total Cases</th>
+            <th>Eligible %</th>
+          </tr></thead>
+          <tbody>${below.map(x => `<tr>
+            <td>${x.e.last_name||''}, ${x.e.first_name||''}</td>
+            <td>${x.cnt}</td>
+            <td style="color:#ef4444;font-weight:700;">${x.eligPct}%</td>
+          </tr>`).join('')}</tbody>
+        </table>`
+      : '<div class="b40-empty">✓ All members above 40%</div>';
+  } else {
+    document.getElementById('below40-wrap').innerHTML = '<div class="b40-empty">No cases in TTM period</div>';
+  }
+}
+
+// ── REPORTING ─────────────────────────────────────────────────────
+let repRows    = [];   // computed rows, ready for sort/filter
+let repSort    = { col: 'all', dir: 'desc' };
+let repTotals  = { totalCases: 0, totalSearches: 0, totalTraining: 0, totalTC: 0, totalTE: 0 };
+
+// Init date defaults: Jan 1 of current year → today
+(function initRepDates() {
+  const today = new Date().toISOString().slice(0, 10);
+  const jan1  = today.slice(0, 4) + '-01-01';
+  document.getElementById('rep-from').value = jan1;
+  document.getElementById('rep-to').value   = today;
+})();
+
+async function loadReporting() {
+  const from = document.getElementById('rep-from').value || '2000-01-01';
+  const to   = document.getElementById('rep-to').value   || new Date().toISOString().slice(0,10);
+
+  document.getElementById('rep-tbody').innerHTML =
+    '<tr><td colspan="12"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>';
+
+  try {
+    // 1. Fetch cases in period
+    const caseRes = await fetch(
+      `${SUPABASE_URL}/rest/v1/case1?select=id,case_cat,case_type&date=gte.${from}&date=lte.${to}&limit=2000`,
+      { headers }
+    );
+    const periodCases = await caseRes.json();
+
+    const totalCases    = periodCases.length;
+    const totalSearches = periodCases.filter(c => c.case_type === 'S').length;
+    const totalTraining = periodCases.filter(c => c.case_type === 'T').length;
+    const totalTC       = periodCases.filter(c => c.case_type === 'TC').length;
+    const totalTE       = periodCases.filter(c => c.case_type === 'TE').length;
+    const totalEligible = totalSearches + totalTraining + totalTC;  // S + T + TC
+    repTotals = { totalCases, totalSearches, totalTraining, totalTC, totalTE, totalEligible };
+
+    document.getElementById('rep-total-searches').textContent = totalSearches;
+    document.getElementById('rep-total-training').textContent = totalTraining;
+    document.getElementById('rep-total-cases').textContent    = totalCases;
+    document.getElementById('rep-total-eligible').textContent = totalEligible;
+
+    // 2. Build case lookup map
+    const caseMap = {};
+    periodCases.forEach(c => { caseMap[c.id] = c; });
+
+    // 3. Fetch case1_employees in batches of 60
+    const caseIds = periodCases.map(c => c.id);
+    const empData = {}; // { employee_id: { all, searches, training, coreTrain, trainExt } }
+
+    for (let i = 0; i < caseIds.length; i += 60) {
+      const chunk = caseIds.slice(i, i + 60);
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/case1_employees?select=employee_id,case_id&case_id=in.(${chunk.join(',')})`,
+        { headers: { ...headers, 'Range': '0-9999' } }
+      );
+      const data = await r.json();
+      if (Array.isArray(data)) {
+        data.forEach(row => {
+          const c = caseMap[row.case_id];
+          if (!c) return;
+          const d = empData[row.employee_id] || (empData[row.employee_id] = { all:0, searches:0, training:0, coreTrain:0, trainExt:0 });
+          // All = S + T + TC + TE (numerator)
+          if (['S','T','TC','TE'].includes(c.case_type)) d.all++;
+          if (c.case_type === 'S')  d.searches++;
+          if (c.case_type === 'T')  d.training++;
+          if (c.case_type === 'TC') d.coreTrain++;
+          if (c.case_type === 'TE') d.trainExt++;
+        });
+      }
+    }
+
+    // 4. Build row objects for all active employees
+    const activeEmps = allEmployees.filter(e => ['Active','Rookie','Admin'].includes(e.status));
+    repRows = activeEmps.map(e => {
+      const d = empData[e.id] || { all:0, searches:0, training:0, coreTrain:0, trainExt:0 };
+      const eligible = d.searches + d.training + d.coreTrain; // S + T + TC
+      return {
+        e,
+        all:       d.all,
+        eligible,
+        searches:  d.searches,
+        training:  d.training,
+        coreTrain: d.coreTrain,
+        trainExt:  d.trainExt,
+        allPct:       totalEligible > 0 ? Math.round(d.all / totalEligible * 100) : 0,
+        searchPct:    totalSearches > 0 ? Math.round(d.searches  / totalSearches * 100) : 0,
+        trainPct:     totalTraining > 0 ? Math.round(d.training  / totalTraining * 100) : 0,
+        corePct:      totalTC       > 0 ? Math.round(d.coreTrain / totalTC       * 100) : 0,
+      };
+    });
+
+    // Team Average — exclude members hired < 1 year from today,
+    // UNLESS the report "To" date is after 2025-12-31 (then include everyone).
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const oneYearAgo = new Date();
+    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+    const oneYearAgoStr = oneYearAgo.toISOString().slice(0, 10);
+    const includeNewMembers = to > '2025-12-31';
+    const avgRows = includeNewMembers
+      ? repRows
+      : repRows.filter(r => !r.e.hire_date || r.e.hire_date <= oneYearAgoStr);
+    const avg = avgRows.length
+      ? Math.round(avgRows.reduce((s, r) => s + r.allPct, 0) / avgRows.length)
+      : 0;
+    document.getElementById('rep-team-avg').textContent = avg + '%';
+
+    renderRepRows();
+  } catch(e) {
+    console.error('Reporting error:', e);
+    document.getElementById('rep-tbody').innerHTML =
+      `<tr><td colspan="12" style="padding:20px;color:#ef4444">Error loading report: ${e.message}</td></tr>`;
+  }
+}
+
+function renderRepRows() {
+  const search = (document.getElementById('rep-search').value || '').toLowerCase();
+
+  let rows = repRows.filter(r =>
+    !search ||
+    (r.e.last_name  ||'').toLowerCase().includes(search) ||
+    (r.e.first_name ||'').toLowerCase().includes(search) ||
+    (r.e.call_no    ||'').toLowerCase().includes(search)
+  );
+
+  // Sort
+  const { col, dir } = repSort;
+  rows = [...rows].sort((a, b) => {
+    let av, bv;
+    if      (col === 'last_name')  { av = (a.e.last_name ||''); bv = (b.e.last_name ||''); }
+    else if (col === 'first_name') { av = (a.e.first_name||''); bv = (b.e.first_name||''); }
+    else                           { av = a[col] ?? 0;          bv = b[col] ?? 0; }
+    if (typeof av === 'string') return dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+    return dir === 'asc' ? av - bv : bv - av;
+  });
+
+  // Update sort arrows
+  document.querySelectorAll('#rep-thead th.sortable').forEach(th => {
+    const isActive = th.dataset.col === col;
+    th.classList.toggle('sort-asc',  isActive && dir === 'asc');
+    th.classList.toggle('sort-desc', isActive && dir === 'desc');
+    const arrow = th.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = isActive ? (dir === 'asc' ? '↑' : '↓') : '↕';
+  });
+
+  document.getElementById('rep-tbody').innerHTML = rows.length
+    ? rows.map((r, i) => {
+        const eid = r.e.id;
+        const lk = (type, label, val) =>
+          `<span class="rep-count-link" onclick="openMemberDetail('${eid}','${type||''}','${label}')">${val}</span>`;
+        return `<tr>
+          <td class="muted">${i + 1}</td>
+          <td><span class="rep-name-link" onclick="openMemberDetail('${eid}',null,'All')">${r.e.last_name||'—'}</span></td>
+          <td>${r.e.first_name||'—'}</td>
+          <td class="muted">${repTotals.totalEligible}</td>
+          <td class="rep-all">${lk('', 'All', r.all)}</td>
+          <td class="muted">${r.eligible}</td>
+          <td class="muted">${r.allPct}%</td>
+          <td class="rep-type-count">${lk('S', 'Searches', r.searches)}</td>
+          <td class="muted">${r.searchPct}%</td>
+          <td class="rep-type-count">${lk('T', 'Training', r.training)}</td>
+          <td class="muted">${r.trainPct}%</td>
+          <td class="rep-type-count">${lk('TC', 'Core Training', r.coreTrain)}</td>
+          <td class="muted">${r.corePct}%</td>
+          <td class="rep-type-count">${lk('TE', 'Train Extra', r.trainExt)}</td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="13"><div class="empty">No data for this period.</div></td></tr>';
+}
+
+// Reporting table sort
+document.getElementById('rep-thead').addEventListener('click', e => {
+  const th = e.target.closest('th.sortable');
+  if (!th) return;
+  const col = th.dataset.col;
+  if (repSort.col === col) {
+    repSort.dir = repSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    repSort = { col, dir: col === 'all' || col === 'rank' ? 'desc' : 'asc' };
+  }
+  renderRepRows();
+});
+
+// Export reporting CSV
+function exportReporting() {
+  const cols = ['Rank','Last Name','First Name','Team Eligible','All','Eligible','Eligible %','Searches','Search %','Training','Train %','Core Train','Core %','Train Ext'];
+  const search = (document.getElementById('rep-search').value || '').toLowerCase();
+  let rows = repRows.filter(r =>
+    !search ||
+    (r.e.last_name||'').toLowerCase().includes(search) ||
+    (r.e.first_name||'').toLowerCase().includes(search)
+  );
+  rows = [...rows].sort((a,b) => b.all - a.all || (a.e.last_name||'').localeCompare(b.e.last_name||''));
+  const csv = [
+    cols.join(','),
+    ...rows.map((r, i) => [
+      i+1, r.e.last_name||'', r.e.first_name||'',
+      repTotals.totalEligible, r.all, r.eligible, r.allPct+'%', r.searches, r.searchPct+'%',
+      r.training, r.trainPct+'%', r.coreTrain, r.corePct+'%', r.trainExt
+    ].map(v => `"${v}"`).join(','))
+  ].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `SAR_Report_${document.getElementById('rep-from').value}_to_${document.getElementById('rep-to').value}.csv`;
+  a.click();
+}
+
+// ── MEMBER DETAIL ─────────────────────────────────────────────────
+let mdEmployee   = null;
+let mdTypeFilter = null;   // null | 'S' | 'T' | 'TC' | 'TE'
+let mdTypeLabel  = '';
+let mdEmpCaseIds = null;   // Set of case IDs this employee responded to (in reporting period)
+let mdDateFrom   = '';
+let mdDateTo     = '';
+let mdDateSort   = 'desc';
+
+const MD_TYPE_LABELS = { S:'Searches', T:'Training', TC:'Core Training', TE:'Train Extra' };
+
+async function openMemberDetail(empId, typeFilter, typeLabel) {
+  mdEmployee   = allEmployees.find(e => e.id === empId);
+  mdTypeFilter = typeFilter || null;
+  mdTypeLabel  = typeLabel  || 'All';
+  mdDateFrom   = document.getElementById('rep-from').value;
+  mdDateTo     = document.getElementById('rep-to').value;
+
+  if (!mdEmployee) return;
+
+  // Title
+  const typeSuffix = mdTypeFilter ? ` (${MD_TYPE_LABELS[mdTypeFilter] || mdTypeLabel})` : '';
+  document.getElementById('md-title').textContent =
+    `Case Log — ${mdEmployee.last_name}, ${mdEmployee.first_name}${typeSuffix}`;
+
+  // Date display
+  document.getElementById('md-date-display').textContent =
+    `${fmt(mdDateFrom)}  –  ${fmt(mdDateTo)}`;
+
+  // Type chip
+  if (mdTypeFilter) {
+    document.getElementById('md-chip-label').textContent = `Type: ${mdTypeFilter}`;
+    document.getElementById('md-type-chip').style.display = '';
+  } else {
+    document.getElementById('md-type-chip').style.display = 'none';
+  }
+
+  document.getElementById('md-modal').classList.add('open');
+  document.getElementById('md-tbody').innerHTML =
+    '<tr><td colspan="7"><div class="loader-wrap"><div class="spinner"></div></div></td></tr>';
+
+  // Fetch cases this employee responded to
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/case1_employees?select=case_id&employee_id=eq.${empId}`,
+      { headers: { ...headers, 'Range': '0-9999' } }
+    );
+    const data = await r.json();
+    mdEmpCaseIds = new Set(Array.isArray(data) ? data.map(x => x.case_id) : []);
+    renderMdRows();
+  } catch(e) {
+    document.getElementById('md-tbody').innerHTML =
+      `<tr><td colspan="8" style="padding:16px;color:#ef4444">Error: ${e.message}</td></tr>`;
+  }
+}
+
+function clearMdTypeFilter() {
+  mdTypeFilter = null;
+  document.getElementById('md-type-chip').style.display = 'none';
+  // Update title
+  if (mdEmployee) {
+    document.getElementById('md-title').textContent =
+      `Case Log — ${mdEmployee.last_name}, ${mdEmployee.first_name}`;
+  }
+  renderMdRows();
+}
+
+function renderMdRows() {
+  if (!mdEmpCaseIds) return;
+
+  // Filter allCases: date range + employee responded + optional type
+  let rows = allCases.filter(c => {
+    if (!mdEmpCaseIds.has(c.id)) return false;
+    if (c.date < mdDateFrom || c.date > mdDateTo) return false;
+    if (mdTypeFilter && c.case_type !== mdTypeFilter) return false;
+    return true;
+  });
+
+  // Sort by date
+  rows = [...rows].sort((a, b) => {
+    const cmp = (a.date||'').localeCompare(b.date||'');
+    return mdDateSort === 'asc' ? cmp : -cmp;
+  });
+
+  document.getElementById('md-tbody').innerHTML = rows.length
+    ? rows.map(c => `<tr>
+        <td><a class="case-link" onclick="document.getElementById('md-modal').classList.remove('open');openCaseDetail('${c.id}')">${c.case_number||'—'}</a></td>
+        <td style="white-space:nowrap">${c.date||'—'}</td>
+        <td class="muted">${c.case_type||'—'}</td>
+        <td class="muted">${c.case_cat||'—'}</td>
+        <td class="muted">${fmtTime(c.case_time_begin)}</td>
+        <td class="muted">${c.location ? `<span class="loc-link" onclick="showLocMap(event,'${(c.case_gps||'').replace(/'/g,"\\'")}','${(c.location||'').replace(/'/g,"\\'")}','${c.case_number||''}')">${c.location}</span>` : '—'}</td>
+        <td class="muted" style="max-width:260px">${truncate(c.notes, 80)}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="7"><div class="empty">No cases found for this filter.</div></td></tr>';
+}
+
+// Toggle date sort in detail
+document.getElementById('md-date-th').addEventListener('click', () => {
+  mdDateSort = mdDateSort === 'desc' ? 'asc' : 'desc';
+  document.querySelector('#md-date-th .sort-arrow').textContent = mdDateSort === 'asc' ? '↑' : '↓';
+  renderMdRows();
+});
+
+// Export member detail CSV
+function exportMemberDetail() {
+  if (!mdEmpCaseIds || !mdEmployee) return;
+  let rows = allCases.filter(c =>
+    mdEmpCaseIds.has(c.id) &&
+    c.date >= mdDateFrom && c.date <= mdDateTo &&
+    (!mdTypeFilter || c.case_type === mdTypeFilter)
+  ).sort((a,b) => (b.date||'').localeCompare(a.date||''));
+  const hdr = ['Case #','Date','Type','Cat','Time','Location','Call Description'];
+  const csv = [hdr.join(','), ...rows.map(c => [
+    c.case_number||'', c.date||'', c.case_type||'', c.case_cat||'',
+    c.case_time_begin||'', c.location||'', (c.notes||'').replace(/"/g,'""')
+  ].map(v => `"${v}"`).join(','))].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `${mdEmployee.last_name}_${mdEmployee.first_name}_cases.csv`;
+  a.click();
+}
+
+// Close detail modal on backdrop click
+document.getElementById('md-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
+});
+
+// ── CASES ─────────────────────────────────────────────────────────
+function renderCases() {
+  const cat  = document.getElementById('f-cat').value;
+  const type = document.getElementById('f-type').value;
+  const from = document.getElementById('f-from').value;
+  const to   = document.getElementById('f-to').value;
+
+  let rows = allCases.filter(c => {
+    if (cat  && c.case_cat  !== cat)  return false;
+    if (type && c.case_type !== type) return false;
+    if (from && c.date < from) return false;
+    if (to   && c.date > to)   return false;
+    if (memberFilterCaseIds !== null && !memberFilterCaseIds.has(c.id)) return false;
+    return true;
+  });
+
+  // Sort
+  const { col: csCol, dir: csDir } = casesSort;
+  rows = [...rows].sort((a, b) => {
+    let av, bv;
+    if (csCol === '_resp_count') {
+      av = a._resp_count || 0; bv = b._resp_count || 0;
+    } else {
+      av = (a[csCol] || '').toString().toLowerCase();
+      bv = (b[csCol] || '').toString().toLowerCase();
+    }
+    if (av < bv) return csDir === 'asc' ? -1 : 1;
+    if (av > bv) return csDir === 'asc' ?  1 : -1;
+    return 0;
+  });
+
+  // Update header arrows
+  document.querySelectorAll('#cases-thead th.sortable').forEach(th => {
+    const isActive = th.dataset.col === csCol;
+    th.classList.toggle('sort-asc',  isActive && csDir === 'asc');
+    th.classList.toggle('sort-desc', isActive && csDir === 'desc');
+    const arrow = th.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = isActive ? (csDir === 'asc' ? '↑' : '↓') : '↕';
+  });
+
+  document.getElementById('cases-count').textContent = `${rows.length.toLocaleString()} case${rows.length!==1?'s':''}`;
+  document.getElementById('cases-tbody').innerHTML = rows.length
+    ? rows.map(c => {
+        const cnt = c._resp_count || 0;
+        return `<tr>
+          <td><a class="case-link" onclick="openCaseDetail('${c.id}')">${c.case_number}</a></td>
+          <td style="text-align:center">${cnt > 0 ? `<span class="resp-link" onclick="showMemberList(event,'${c.id}')">${cnt}</span>` : '<span class="muted">0</span>'}</td>
+          <td style="white-space:nowrap">${fmt(c.date)}</td>
+          <td>${catBadge(c.case_cat)}</td>
+          <td>${typeBadge(c.case_type)}</td>
+          <td class="muted">${c.location ? `<span class="loc-link" onclick="showLocMap(event,'${(c.case_gps||'').replace(/'/g,"\\'")}','${(c.location||'').replace(/'/g,"\\'")}','${c.case_number||''}')">${c.location}</span>` : '—'}</td>
+          <td class="muted">${fmtTime(c.case_time_begin)}</td>
+          <td class="muted">${fmtTime(c.case_time_end)}</td>
+          <td class="muted" style="max-width:240px">${truncate(c.notes,70)}</td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="9"><div class="empty">No cases match your filters.</div></td></tr>';
+}
+
+// ── ROSTER ────────────────────────────────────────────────────────
+function renderRoster() {
+  const status  = document.getElementById('r-status').value;
+  const rsearch = document.getElementById('r-search').value.toLowerCase();
+
+  let rows = allEmployees.filter(e => {
+    if (status && e.status !== status) return false;
+    if (rsearch && !`${e.first_name} ${e.last_name} ${e.call_no}`.toLowerCase().includes(rsearch)) return false;
+    return true;
+  });
+
+  // Sort
+  const { col, dir } = rosterSort;
+  rows = [...rows].sort((a, b) => {
+    let av, bv;
+    if (col === 'last_name') {
+      av = (a.last_name||'').toLowerCase();
+      bv = (b.last_name||'').toLowerCase();
+    } else if (col === 'first_name') {
+      av = (a.first_name||'').toLowerCase();
+      bv = (b.first_name||'').toLowerCase();
+    } else if (col === 'call_no') {
+      // Sort by numeric part of call number (L86 → 86)
+      av = parseInt((a.call_no||'').replace(/\D/g,'')) || 0;
+      bv = parseInt((b.call_no||'').replace(/\D/g,'')) || 0;
+    } else if (col === 'hire_date') {
+      av = a.hire_date || '';
+      bv = b.hire_date || '';
+    } else {
+      av = a[col] || '';
+      bv = b[col] || '';
+    }
+    if (av < bv) return dir === 'asc' ? -1 : 1;
+    if (av > bv) return dir === 'asc' ?  1 : -1;
+    return 0;
+  });
+
+  // Update header arrows
+  document.querySelectorAll('#roster-thead th.sortable').forEach(th => {
+    const isActive = th.dataset.col === col;
+    th.classList.toggle('sort-asc',  isActive && dir === 'asc');
+    th.classList.toggle('sort-desc', isActive && dir === 'desc');
+    const arrow = th.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = isActive ? (dir === 'asc' ? '↑' : '↓') : '↕';
+  });
+
+  document.getElementById('roster-count').textContent = `${rows.length} member${rows.length!==1?'s':''}`;
+  document.getElementById('roster-tbody').innerHTML = rows.length
+    ? rows.map(e => `<tr>
+        <td><strong>${e.call_no||'—'}</strong></td>
+        <td>${e.last_name||'—'}</td>
+        <td>${e.first_name||'—'}</td>
+        <td>${statusBadge(e.status)}</td>
+        <td class="muted">${e.city||'—'}</td>
+        <td class="muted" style="white-space:nowrap">${fmt(e.hire_date)}</td>
+        <td class="muted">${e.phone||'—'}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="7"><div class="empty">No members match your search.</div></td></tr>';
+}
+
+// ── LIVE FILTER HOOKS ─────────────────────────────────────────────
+['f-cat','f-type','f-from','f-to'].forEach(id =>
+  document.getElementById(id).addEventListener('input', renderCases));
+['r-status','r-search'].forEach(id =>
+  document.getElementById(id).addEventListener('input', renderRoster));
+
+// Member filter — debounced, fetches from Supabase
+document.getElementById('f-member').addEventListener('input', () => {
+  clearTimeout(memberFilterTimer);
+  memberFilterTimer = setTimeout(applyMemberFilter, 300);
+});
+
+async function applyMemberFilter() {
+  const query = document.getElementById('f-member').value.trim().toLowerCase();
+
+  if (!query) {
+    memberFilterCaseIds = null;
+    renderCases();
+    return;
+  }
+
+  // Match employees by call # or last name
+  const matches = allEmployees.filter(e =>
+    (e.call_no  ||'').toLowerCase().includes(query) ||
+    (e.last_name||'').toLowerCase().includes(query)
+  );
+
+  if (!matches.length) {
+    memberFilterCaseIds = new Set();
+    renderCases();
+    return;
+  }
+
+  // Fetch case_ids for matched employees from Supabase
+  const ids = matches.map(e => e.id).join(',');
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/case1_employees?select=case_id&employee_id=in.(${ids})`,
+      { headers: { ...headers, 'Range': '0-9999' } }
+    );
+    const data = await res.json();
+    memberFilterCaseIds = new Set(data.map(r => r.case_id));
+  } catch(e) {
+    memberFilterCaseIds = new Set();
+  }
+  renderCases();
+}
+
+// ── MEMBER LIST POPUP ─────────────────────────────────────────────
+let _popEl = null;
+function closePopup() { if (_popEl) { _popEl.remove(); _popEl = null; } }
+document.addEventListener('click', e => {
+  if (_popEl && !_popEl.contains(e.target) && !e.target.classList.contains('resp-link')) closePopup();
+});
+
+async function showMemberList(event, caseId) {
+  event.stopPropagation();
+  closePopup();
+  const span = event.currentTarget;
+  // Fetch employees for this case
+  let names = [];
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/case1_employees?select=employee_id&case_id=eq.${caseId}`,
+      { headers: { ...headers, 'Range': '0-9999' } }
+    );
+    const data = await res.json();
+    const ids = new Set(data.map(r => r.employee_id));
+    names = allEmployees
+      .filter(e => ids.has(e.id))
+      .sort((a, b) => (a.last_name||'').localeCompare(b.last_name||''));
+  } catch(e) { names = []; }
+
+  const pop = document.createElement('div');
+  pop.className = 'member-popup';
+  pop.innerHTML = `
+    <h4><span class="close-pop" onclick="closePopup()">✕</span>Responding Members (${names.length})</h4>
+    <ul>${names.length
+      ? names.map(e => `<li><span class="call">${e.call_no||'—'}</span>${e.last_name||''}, ${e.first_name||''}</li>`).join('')
+      : '<li style="color:var(--muted)">No members found</li>'
+    }</ul>`;
+  document.body.appendChild(pop);
+  _popEl = pop;
+
+  // Position near clicked element
+  const rect = span.getBoundingClientRect();
+  let top = rect.bottom + 6;
+  let left = rect.left;
+  // Keep inside viewport
+  if (left + 280 > window.innerWidth) left = window.innerWidth - 288;
+  if (top + 200 > window.innerHeight) top = rect.top - pop.offsetHeight - 6;
+  pop.style.top  = top  + 'px';
+  pop.style.left = left + 'px';
+  // Re-check after render
+  requestAnimationFrame(() => {
+    if (top + pop.offsetHeight > window.innerHeight) {
+      pop.style.top = (rect.top - pop.offsetHeight - 6) + 'px';
+    }
+  });
+}
+
+// ── LOCATION MINI-MAP + CALTOPO ──────────────────────────────────
+let _locMap = null;
+
+function closeLocMap() {
+  document.getElementById('loc-map-overlay').classList.remove('open');
+  if (_locMap) { _locMap.remove(); _locMap = null; }
+  document.getElementById('loc-map-el').innerHTML = '';
+}
+
+function showLocMap(event, gpsStr, locationName, caseNum) {
+  event.stopPropagation();
+  const coords = parseGPS(gpsStr);
+  if (!coords) {
+    alert('No valid GPS coordinates for this case.');
+    return;
+  }
+  const [lat, lon] = coords;
+
+  // Update header + footer
+  document.getElementById('loc-map-title').textContent =
+    `📍 Case ${caseNum}${locationName ? ' — ' + locationName : ''}`;
+  document.getElementById('loc-map-coords').textContent =
+    `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+  document.getElementById('caltopo-link').href =
+    `https://caltopo.com/map.html#ll=${lat.toFixed(6)},${lon.toFixed(6)}&z=16&b=mbt`;
+
+  // Show overlay
+  document.getElementById('loc-map-overlay').classList.add('open');
+
+  // Destroy previous map instance
+  const el = document.getElementById('loc-map-el');
+  el.innerHTML = '';
+  if (_locMap) { _locMap.remove(); _locMap = null; }
+
+  setTimeout(() => {
+    _locMap = L.map(el, { zoomControl: true }).setView(coords, 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap'
+    }).addTo(_locMap);
+
+    // Large custom red pin using SVG
+    const pinIcon = L.divIcon({
+      className: '',
+      html: `<svg xmlns="http://www.w3.org/2000/svg" width="44" height="56" viewBox="0 0 44 56">
+        <defs>
+          <filter id="shadow" x="-30%" y="-10%" width="160%" height="130%">
+            <feDropShadow dx="0" dy="2" stdDeviation="2" flood-color="#0003"/>
+          </filter>
+        </defs>
+        <path d="M22 2C12.06 2 4 10.06 4 20c0 13.5 18 34 18 34S40 33.5 40 20C40 10.06 31.94 2 22 2z"
+          fill="#c0392b" stroke="#2c3e50" stroke-width="2.5" filter="url(#shadow)"/>
+        <circle cx="22" cy="20" r="8" fill="#f0f4f8" opacity="0.9"/>
+      </svg>`,
+      iconSize:   [44, 56],
+      iconAnchor: [22, 56],
+      popupAnchor:[0, -58],
+    });
+
+    L.marker(coords, { icon: pinIcon })
+      .addTo(_locMap)
+      .bindPopup(`<b>${locationName || 'GPS Location'}</b><br>${lat.toFixed(5)}, ${lon.toFixed(5)}`)
+      .openPopup();
+  }, 60);
+}
+
+// ── CASES SORT CLICK ──────────────────────────────────────────────
+document.getElementById('cases-thead').addEventListener('click', e => {
+  const th = e.target.closest('th.sortable');
+  if (!th) return;
+  const col = th.dataset.col;
+  if (casesSort.col === col) {
+    casesSort.dir = casesSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    casesSort = { col, dir: col === 'date' ? 'desc' : 'asc' };
+  }
+  renderCases();
+});
+
+// ── ROSTER SORT CLICK ─────────────────────────────────────────────
+document.getElementById('roster-thead').addEventListener('click', e => {
+  const th = e.target.closest('th.sortable');
+  if (!th) return;
+  const col = th.dataset.col;
+  if (rosterSort.col === col) {
+    rosterSort.dir = rosterSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    rosterSort = { col, dir: 'asc' };
+  }
+  renderRoster();
+});
+
+// ── EXPORT CSV ────────────────────────────────────────────────────
+function exportCasesCSV() {
+  const visibleRows = allCases.filter(c => {
+    const cat  = document.getElementById('f-cat').value;
+    const type = document.getElementById('f-type').value;
+    const from = document.getElementById('f-from').value;
+    const to   = document.getElementById('f-to').value;
+    if (cat  && c.case_cat  !== cat)  return false;
+    if (type && c.case_type !== type) return false;
+    if (from && c.date < from) return false;
+    if (to   && c.date > to)   return false;
+    if (memberFilterCaseIds !== null && !memberFilterCaseIds.has(c.id)) return false;
+    return true;
+  });
+  const headers = ['Case #','Date','Category','Type','Responding','Location','Start','End','GPS','Notes'];
+  const rows = visibleRows.map(c => [
+    c.case_number, c.date, c.case_cat||'', c.case_type||'',
+    c._resp_count||0, c.location||'', c.case_time_begin||'', c.case_time_end||'',
+    c.case_gps||'', (c.notes||'').replace(/"/g,'""')
+  ].map(v => `"${v}"`).join(','));
+  const csv = [headers.join(','), ...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `SAR_Cases_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+// ── CASES BY DAY ──────────────────────────────────────────────────
+function openCasesByDay() {
+  // Pre-populate date range from Cases page filters
+  document.getElementById('cbd-from').value = document.getElementById('f-from').value;
+  document.getElementById('cbd-to').value   = document.getElementById('f-to').value;
+
+  document.getElementById('cbd-modal').classList.add('open');
+  document.getElementById('cbd-modal').addEventListener('click', function(e){ if(e.target===this) this.classList.remove('open'); });
+  renderCBD();
+}
+
+function renderCBD() {
+  const from    = document.getElementById('cbd-from').value;
+  const to      = document.getElementById('cbd-to').value;
+  const typeFilter = document.getElementById('f-type').value;
+  const catFilter  = document.getElementById('f-cat').value;
+
+  // Update title
+  const parts = [];
+  if (typeFilter) parts.push(`Type: ${typeFilter}`);
+  if (catFilter)  parts.push(`Cat: ${catFilter}`);
+  document.getElementById('cbd-title').textContent =
+    `📅 Cases by Day${parts.length ? ` (${parts.join(', ')})` : ''}`;
+
+  // Filter cases
+  const filtered = allCases.filter(c => {
+    if (!c.date) return false;
+    if (typeFilter && c.case_type !== typeFilter) return false;
+    if (catFilter  && c.case_cat  !== catFilter)  return false;
+    if (from && c.date < from) return false;
+    if (to   && c.date > to)   return false;
+    return true;
+  });
+
+  // Group by day of week (0=Sun … 6=Sat), display Mon–Sun
+  const dayCounts = [0,0,0,0,0,0,0];
+  filtered.forEach(c => {
+    const dow = new Date(c.date + 'T12:00:00').getDay(); // 0=Sun
+    dayCounts[dow]++;
+  });
+
+  const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const displayOrder = [1,2,3,4,5,6,0]; // Mon–Sun
+  const total = filtered.length;
+  const maxCount = Math.max(...dayCounts, 1);
+
+  const rows = displayOrder.map(dow => {
+    const n   = dayCounts[dow];
+    const pct = total > 0 ? Math.round((n / total) * 100) : 0;
+    const barW = Math.round((n / maxCount) * 120);
+    return `<tr>
+      <td>${dayNames[dow]}</td>
+      <td>${n}</td>
+      <td>
+        <div class="cbd-bar-cell">
+          <div class="cbd-bar" style="width:${barW}px"></div>
+          ${pct}%
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('cbd-table-wrap').innerHTML = `
+    <table class="cbd-table">
+      <thead><tr><th>Day</th><th>Cases</th><th>%</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr><td>Total</td><td>${total}</td><td></td></tr></tfoot>
+    </table>`;
+}
+
+// ── GPS PARSE ─────────────────────────────────────────────────────
+function parseGPS(str) {
+  if (!str || typeof str !== 'string') return null;
+  if (/[a-zA-Z]{3,}/.test(str)) return null; // text like "SAR bldg"
+  const parts = str.trim().split(/[\s,]+/).filter(Boolean);
+  if (parts.length < 2) return null;
+  let lat = parseFloat(parts[0]);
+  let lon = parseFloat(parts[1]);
+  if (isNaN(lat) || isNaN(lon)) return null;
+  // Utah is ~111°W — if lon is positive and plausible, negate it
+  if (lon > 0 && lon > 50) lon = -lon;
+  if (lat < 36 || lat > 43 || lon < -115 || lon > -108) return null;
+  return [lat, lon];
+}
+
+// ── MAP MODAL ─────────────────────────────────────────────────────
+let leafletMap = null;
+
+function closeMapModal() {
+  document.getElementById('hm-modal').classList.remove('open');
+}
+
+function openHeatmap() {
+  const from = document.getElementById('f-from').value;
+  const to   = document.getElementById('f-to').value;
+
+  // Filter cases by date range and presence of GPS
+  const filtered = allCases.filter(c => {
+    if (from && c.date < from) return false;
+    if (to   && c.date > to)   return false;
+    return true;
+  });
+  const withGPS = filtered.filter(c => parseGPS(c.case_gps));
+  const year = (from || allCases[0]?.date || '').slice(0,4) || new Date().getFullYear();
+
+  document.getElementById('map-modal-title').textContent =
+    `📍 ${year} Case Map (${withGPS.length} cases with GPS${from||to ? ' · filtered' : ''})`;
+  document.getElementById('hm-modal').classList.add('open');
+  document.getElementById('hm-modal').addEventListener('click', function(e){ if(e.target===this) closeMapModal(); });
+
+  // Small delay to let modal render before Leaflet measures container
+  setTimeout(() => initMap(withGPS, filtered), 80);
+}
+
+async function initMap(withGPS, allFiltered) {
+  // Destroy previous map instance
+  if (leafletMap) { leafletMap.remove(); leafletMap = null; }
+
+  leafletMap = L.map('map-container').setView([40.35, -111.25], 9);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom: 18,
+  }).addTo(leafletMap);
+
+  // Fetch Wasatch County boundary from Census TIGER
+  try {
+    const res = await fetch('https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query?where=GEOID%3D%2749051%27&outFields=NAME&outSR=4326&f=geojson');
+    const gj  = await res.json();
+    L.geoJSON(gj, {
+      style: { color: '#f97316', weight: 2.5, fillColor: '#fed7aa', fillOpacity: 0.08, dashArray: '6 4' }
+    }).addTo(leafletMap);
+  } catch(e) { console.warn('Could not load county boundary:', e); }
+
+  // Category colors
+  const catColor = { Search:'#3b82f6', Medical:'#ef4444', Training:'#22c55e', Other:'#94a3b8' };
+
+  const markers = [];
+  withGPS.forEach(c => {
+    const coords = parseGPS(c.case_gps);
+    if (!coords) return;
+    const color = catColor[c.case_cat] || '#64748b';
+    const marker = L.circleMarker(coords, {
+      radius: 8, fillColor: color, color: '#fff',
+      weight: 2, opacity: 1, fillOpacity: 0.85
+    }).addTo(leafletMap);
+    marker.bindPopup(`
+      <strong>${c.case_number}</strong><br>
+      ${fmt(c.date)}<br>
+      ${c.location || c.case_cat || ''}
+      ${c.notes ? `<br><span style="font-size:11px;color:#64748b">${truncate(c.notes,60)}</span>` : ''}
+    `);
+    markers.push(marker);
+  });
+
+  // Fit map to markers if any
+  if (markers.length) {
+    const group = L.featureGroup(markers);
+    leafletMap.fitBounds(group.getBounds().pad(0.15));
+  }
+
+  // Build case table below map
+  const tableWrap = document.getElementById('map-table-wrap');
+  if (!allFiltered.length) { tableWrap.innerHTML = ''; return; }
+  tableWrap.innerHTML = `
+    <table>
+      <thead><tr>
+        <th>Case #</th><th>Responding</th><th>Date</th><th>Type</th>
+        <th>Cat</th><th>Time</th><th>Location</th><th>Call Description</th>
+      </tr></thead>
+      <tbody>${allFiltered.map(c => `<tr onclick="closeMapModal();openCaseDetail('${c.id}')">
+        <td><strong>${c.case_number}</strong></td>
+        <td style="text-align:center">${c._resp_count||0}</td>
+        <td style="white-space:nowrap">${c.date||'—'}</td>
+        <td>${c.case_type||'—'}</td>
+        <td>${c.case_cat||'—'}</td>
+        <td>${fmtTime(c.case_time_begin)}</td>
+        <td>${c.location||'—'}</td>
+        <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${truncate(c.notes||'',60)}</td>
+      </tr>`).join('')}</tbody>
+    </table>`;
+}
+
+// ── ADD CASE ──────────────────────────────────────────────────────
+async function openAddCase() {
+  currentCaseId = '__new__';
+  const modal   = document.getElementById('case-modal');
+  const body    = document.getElementById('modal-body');
+  const footer  = document.getElementById('modal-footer');
+  const numSpan = document.getElementById('modal-case-num');
+  const topBtn  = document.getElementById('save-btn-top');
+
+  numSpan.textContent = 'New Case';
+  footer.style.display = 'flex';
+  topBtn.style.display = '';
+  modal.classList.add('open');
+
+  const sortedEmps = [...allEmployees].sort((a,b) => a.last_name.localeCompare(b.last_name));
+  const empChecks = sortedEmps.map(e => `
+    <label class="emp-list-item">
+      <input type="checkbox" name="emp" value="${e.id}" onchange="updateEmpCount()">
+      <label>${e.last_name}, ${e.first_name} (${e.call_no})</label>
+    </label>`).join('');
+  const occOptions = `<option value="">— None —</option>` +
+    sortedEmps.map(e => `<option value="${e.id}">${e.last_name}, ${e.first_name} (${e.call_no})</option>`).join('');
+
+  body.innerHTML = `
+    <div class="detail-grid">
+      <div class="detail-field">
+        <div class="detail-label">Case Number *</div>
+        <input class="modal-input" id="f-case-number" placeholder="e.g. 2606-0756">
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Date *</div>
+        <input class="modal-input" id="f-date" type="date" value="${new Date().toISOString().slice(0,10)}">
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Case Type</div>
+        <select class="modal-input" id="f-case-type">
+          <option value="">— Select —</option>
+          <option value="S">S – Search</option><option value="T">T – Training</option>
+          <option value="TC">TC – Training Core</option><option value="TE">TE – Training Extra</option>
+          <option value="O">O – Other</option><option value="NA">NA</option>
+        </select>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Case Category</div>
+        <select class="modal-input" id="f-case-cat">
+          <option value="">— Select —</option>
+          <option>Search</option><option>Medical</option><option>Training</option><option>Other</option>
+        </select>
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Time Begin</div>
+        <input class="modal-input" id="f-time-begin" type="time">
+      </div>
+      <div class="detail-field">
+        <div class="detail-label">Time End</div>
+        <input class="modal-input" id="f-time-end" type="time">
+      </div>
+      <div class="detail-field full">
+        <div class="detail-label">Location</div>
+        <input class="modal-input" id="f-location" placeholder="Location name">
+      </div>
+      <div class="detail-field full">
+        <div class="detail-label">GPS Coordinates</div>
+        <input class="modal-input" id="f-gps" placeholder="lat, lon">
+      </div>
+      <hr class="detail-divider">
+      <div class="detail-field full">
+        <div class="detail-label">OCC (On Call Command) — Search calls only</div>
+        <select class="modal-input" id="f-occ">${occOptions}</select>
+      </div>
+      <div class="detail-field full">
+        <div class="detail-label">Responding Members</div>
+        <div class="emp-list">${empChecks}</div>
+        <div class="emp-count" id="emp-count">0 selected</div>
+      </div>
+      <hr class="detail-divider">
+      <div class="detail-field full">
+        <div class="detail-label">Call Description / Notes</div>
+        <textarea class="modal-input" id="f-notes" rows="4"></textarea>
+      </div>
+    </div>`;
+}
+
+// ── CASE DETAIL MODAL ─────────────────────────────────────────────
+let currentCaseId = null;
+
+function closeCaseModal() {
+  document.getElementById('case-modal').classList.remove('open');
+  document.getElementById('history-panel').style.display = 'none';
+  document.getElementById('history-toggle').textContent = '📜 View History';
+  historyOpen = false;
+  currentCaseId = null;
+}
+document.getElementById('case-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeCaseModal();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCaseModal(); });
+
+async function openCaseDetail(caseId) {
+  currentCaseId = caseId;
+  const modal   = document.getElementById('case-modal');
+  const body    = document.getElementById('modal-body');
+  const footer  = document.getElementById('modal-footer');
+  const numSpan = document.getElementById('modal-case-num');
+  const topBtn  = document.getElementById('save-btn-top');
+
+  body.innerHTML = '<div class="modal-loader"><div class="spinner"></div><br>Loading…</div>';
+  footer.style.display = 'none';
+  topBtn.style.display = 'none';
+  numSpan.textContent = 'Edit Case Record';
+  modal.classList.add('open');
+
+  try {
+    const [caseRes, empRes] = await Promise.all([
+      sb('case1', { select: '*', id: `eq.${caseId}` }),
+      sb('case1_employees', { select: 'employee_id', case_id: `eq.${caseId}` }),
+    ]);
+
+    const c = caseRes.data[0];
+    if (!c) { body.innerHTML = '<div class="empty">Case not found.</div>'; return; }
+
+    numSpan.textContent = c.case_number;
+    const assignedIds = new Set(empRes.data.map(r => r.employee_id));
+
+    // Build employee checkboxes (sorted by last name)
+    const sortedEmps = [...allEmployees].sort((a,b) => a.last_name.localeCompare(b.last_name));
+    const empChecks = sortedEmps.map(e => `
+      <label class="emp-list-item">
+        <input type="checkbox" name="emp" value="${e.id}" ${assignedIds.has(e.id) ? 'checked' : ''} onchange="updateEmpCount()">
+        <label>${e.last_name}, ${e.first_name} (${e.call_no})</label>
+      </label>`).join('');
+
+    // OCC options
+    const searchEmps = sortedEmps.filter(e => ['Active','Rookie','Admin'].includes(e.status));
+    const occOptions = `<option value="">— None —</option>` +
+      searchEmps.map(e =>
+        `<option value="${e.id}" ${c.occ_employee_id === e.id ? 'selected' : ''}>
+          ${e.last_name}, ${e.first_name} (${e.call_no})
+        </option>`).join('');
+
+    body.innerHTML = `
+      <div class="detail-grid">
+        <div class="detail-field">
+          <div class="detail-label">Case Number *</div>
+          <input class="modal-input" id="f-case-number" value="${c.case_number||''}" placeholder="e.g. 2606-0756">
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Date *</div>
+          <input class="modal-input" id="f-date" type="date" value="${c.date||''}">
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Case Type</div>
+          <select class="modal-input" id="f-case-type">
+            <option value="">— Select —</option>
+            <option value="S"  ${c.case_type==='S'  ?'selected':''}>S – Search</option>
+            <option value="T"  ${c.case_type==='T'  ?'selected':''}>T – Training</option>
+            <option value="TC" ${c.case_type==='TC' ?'selected':''}>TC – Training Core</option>
+            <option value="TE" ${c.case_type==='TE' ?'selected':''}>TE – Training Extra</option>
+            <option value="O"  ${c.case_type==='O'  ?'selected':''}>O – Other</option>
+            <option value="NA" ${c.case_type==='NA' ?'selected':''}>NA</option>
+          </select>
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Case Category</div>
+          <select class="modal-input" id="f-case-cat">
+            <option value="">— Select —</option>
+            <option ${c.case_cat==='Search'   ?'selected':''}>Search</option>
+            <option ${c.case_cat==='Medical'  ?'selected':''}>Medical</option>
+            <option ${c.case_cat==='Training' ?'selected':''}>Training</option>
+            <option ${c.case_cat==='Other'    ?'selected':''}>Other</option>
+          </select>
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Time Begin</div>
+          <input class="modal-input" id="f-time-begin" type="time" value="${c.case_time_begin ? c.case_time_begin.slice(0,5) : ''}">
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Time End</div>
+          <input class="modal-input" id="f-time-end" type="time" value="${c.case_time_end ? c.case_time_end.slice(0,5) : ''}">
+        </div>
+        <div class="detail-field full">
+          <div class="detail-label">Location</div>
+          <input class="modal-input" id="f-location" value="${(c.location||'').replace(/"/g,'&quot;')}" placeholder="Location name">
+        </div>
+        <div class="detail-field full">
+          <div class="detail-label">GPS Coordinates</div>
+          <input class="modal-input" id="f-gps" value="${(c.case_gps||'').replace(/"/g,'&quot;')}" placeholder="lat, lon">
+        </div>
+        <hr class="detail-divider">
+        <div class="detail-field full">
+          <div class="detail-label">OCC (On Call Command) — Search calls only</div>
+          <select class="modal-input" id="f-occ">${occOptions}</select>
+        </div>
+        <div class="detail-field full">
+          <div class="detail-label">Responding Members</div>
+          <div class="emp-list">${empChecks}</div>
+          <div class="emp-count" id="emp-count">${assignedIds.size} selected</div>
+        </div>
+        <hr class="detail-divider">
+        <div class="detail-field full">
+          <div class="detail-label">Call Description / Notes</div>
+          <textarea class="modal-input" id="f-notes" rows="4">${(c.notes||'').replace(/</g,'&lt;')}</textarea>
+        </div>
+      </div>`;
+
+    footer.style.display = 'flex';
+    topBtn.style.display = '';
+  } catch(e) {
+    body.innerHTML = `<div class="empty" style="color:#b91c1c">⚠️ Error: ${e.message}</div>`;
+  }
+}
+
+function updateEmpCount() {
+  const checked = document.querySelectorAll('input[name="emp"]:checked').length;
+  const el = document.getElementById('emp-count');
+  if (el) el.textContent = `${checked} selected`;
+}
+
+async function saveCaseDetail() {
+  if (!currentCaseId) return;
+  const btns = document.querySelectorAll('.save-btn');
+  btns.forEach(b => { b.disabled = true; b.textContent = 'Saving…'; });
+
+  try {
+    const payload = {
+      case_number:     document.getElementById('f-case-number').value.trim(),
+      date:            document.getElementById('f-date').value || null,
+      case_type:       document.getElementById('f-case-type').value || null,
+      case_cat:        document.getElementById('f-case-cat').value || null,
+      case_time_begin: document.getElementById('f-time-begin').value || null,
+      case_time_end:   document.getElementById('f-time-end').value || null,
+      location:        document.getElementById('f-location').value.trim() || null,
+      case_gps:        document.getElementById('f-gps').value.trim() || null,
+      occ_employee_id: document.getElementById('f-occ').value || null,
+      notes:           document.getElementById('f-notes').value.trim() || null,
+      updated_at:      new Date().toISOString(),
+    };
+
+    const checkedIds = [...document.querySelectorAll('input[name="emp"]:checked')].map(i => i.value);
+
+    const isNew = currentCaseId === '__new__';
+    let savedCaseId = currentCaseId;
+
+    if (isNew) {
+      // POST new case
+      payload.id = crypto.randomUUID();
+      savedCaseId = payload.id;
+      const postRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/case1`,
+        { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify(payload) }
+      );
+      if (!postRes.ok) throw new Error(await postRes.text());
+      allCases.unshift({ ...payload, _resp_count: 0 });
+    } else {
+      // 1. PATCH the case
+      const patchRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/case1?id=eq.${currentCaseId}`,
+        { method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify(payload) }
+      );
+      if (!patchRes.ok) throw new Error(await patchRes.text());
+    }
+
+    // 2. Delete old employee assignments
+    if (!isNew) await fetch(
+      `${SUPABASE_URL}/rest/v1/case1_employees?case_id=eq.${savedCaseId}`,
+      { method: 'DELETE', headers }
+    );
+
+    // 3. Insert new employee assignments
+    if (checkedIds.length) {
+      const inserts = checkedIds.map(eid => ({ id: crypto.randomUUID(), case_id: savedCaseId, employee_id: eid }));
+      const insRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/case1_employees`,
+        { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify(inserts) }
+      );
+      if (!insRes.ok) throw new Error(await insRes.text());
+    }
+
+    // Update local cache counts
+    caseEmpCounts[savedCaseId] = checkedIds.length;
+    const idx = allCases.findIndex(c => c.id === savedCaseId);
+    if (idx > -1) allCases[idx] = { ...allCases[idx], ...payload, _resp_count: checkedIds.length };
+    renderCases(); renderDashboard();
+
+    // 4. Write audit log entry
+    const auditEntry = {
+      id: crypto.randomUUID(),
+      case_id: savedCaseId,
+      case_number: payload.case_number,
+      action: isNew ? 'created' : 'updated',
+      snapshot: {
+        case_number: payload.case_number,
+        date: payload.date,
+        case_type: payload.case_type,
+        case_cat: payload.case_cat,
+        case_time_begin: payload.case_time_begin,
+        case_time_end: payload.case_time_end,
+        location: payload.location,
+        case_gps: payload.case_gps,
+        occ_employee_id: payload.occ_employee_id,
+        notes: payload.notes,
+        responding_count: checkedIds.length,
+      },
+      changed_at: new Date().toISOString(),
+    };
+    await fetch(`${SUPABASE_URL}/rest/v1/case_audit_log`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify(auditEntry),
+    });
+
+    // Show success
+    btns.forEach(b => { b.disabled = false; b.textContent = '💾 Save Changes'; });
+    const msg = document.getElementById('save-msg');
+    if (msg) { msg.style.display = 'inline'; setTimeout(() => { msg.style.display = 'none'; }, 3000); }
+
+  } catch(err) {
+    btns.forEach(b => { b.disabled = false; b.textContent = '💾 Save Changes'; });
+    alert('Save failed: ' + err.message);
+  }
+}
+
+// ── CASE HISTORY ──────────────────────────────────────────────────
+let historyOpen = false;
+
+async function toggleHistory() {
+  const panel  = document.getElementById('history-panel');
+  const toggle = document.getElementById('history-toggle');
+  historyOpen = !historyOpen;
+
+  if (!historyOpen) {
+    panel.style.display = 'none';
+    toggle.textContent = '📜 View History';
+    return;
+  }
+
+  panel.style.display = 'block';
+  toggle.textContent = '📜 Hide History';
+  document.getElementById('history-entries').innerHTML =
+    '<div class="modal-loader" style="padding:16px"><div class="spinner"></div></div>';
+
+  try {
+    const cid = currentCaseId === '__new__' ? null : currentCaseId;
+    if (!cid) { document.getElementById('history-entries').innerHTML = '<div style="padding:12px;color:var(--muted);font-size:13px">Save the case first to see history.</div>'; return; }
+
+    const res = await sb('case_audit_log', { select: '*', case_id: `eq.${cid}`, order: 'changed_at.desc', limit: 50 });
+    const entries = res.data;
+
+    if (!entries.length) {
+      document.getElementById('history-entries').innerHTML = '<div style="padding:12px;color:var(--muted);font-size:13px">No history yet.</div>';
+      return;
+    }
+
+    const fieldLabels = {
+      case_number:'Case #', date:'Date', case_type:'Type', case_cat:'Category',
+      case_time_begin:'Start', case_time_end:'End', location:'Location',
+      case_gps:'GPS', notes:'Notes', responding_count:'Responding',
+    };
+
+    document.getElementById('history-entries').innerHTML = entries.map((e, i) => {
+      const snap = e.snapshot || {};
+      const prev = entries[i+1]?.snapshot || null;
+      let changes = '';
+
+      if (prev && e.action === 'updated') {
+        const diffs = Object.entries(fieldLabels).filter(([k]) => snap[k] !== prev[k]);
+        if (diffs.length) {
+          changes = diffs.map(([k, label]) => {
+            const from = prev[k] ?? '—';
+            const to   = snap[k] ?? '—';
+            return `<span style="color:var(--brand)">${label}:</span> ${from} → ${to}`;
+          }).join('<br>');
+        }
+      } else if (e.action === 'created') {
+        changes = `Case ${snap.case_number || ''} created`;
+      }
+
+      return `<div class="history-entry">
+        <div class="history-dot ${e.action}"></div>
+        <div class="history-meta">
+          <div class="history-action">${e.action === 'created' ? '✅ Created' : '✏️ Updated'}</div>
+          <div class="history-time">${new Date(e.changed_at).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})}</div>
+          ${changes ? `<div class="history-fields">${changes}</div>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+
+  } catch(err) {
+    document.getElementById('history-entries').innerHTML = `<div style="padding:12px;color:#b91c1c;font-size:13px">Error loading history: ${err.message}</div>`;
+  }
+}
+
+// ── INIT ──────────────────────────────────────────────────────────
+loadAll();
+</script>
+</body>
+</html>
