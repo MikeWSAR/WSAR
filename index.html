@@ -901,9 +901,11 @@
     <div id="page-roster" class="page">
       <div class="section-card">
         <div class="section-header">
-          <h3>Team Roster</h3>
-          <span class="count" id="roster-count"></span>
-          <div style="margin-left:auto;display:flex;gap:8px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <h3>Team Roster</h3>
+            <span class="count" id="roster-count"></span>
+          </div>
+          <div style="display:flex;gap:8px">
             <button class="export-btn" onclick="exportRoster('csv')">⬇ CSV</button>
             <button class="export-btn" onclick="exportRoster('pdf')">⬇ PDF</button>
           </div>
@@ -938,14 +940,12 @@
 
 <!-- MEMBER PROFILE MODAL -->
 <div class="modal-overlay" id="member-profile-modal">
-  <div class="modal-box" style="max-width:520px">
+  <div class="modal" style="max-width:520px;width:95vw">
     <div class="modal-header">
-      <div>
-        <div class="modal-case-num" id="mp-title">Member Profile</div>
-      </div>
+      <div class="modal-case-num" id="mp-title" style="font-size:16px;font-weight:700"></div>
       <button class="modal-close" onclick="document.getElementById('member-profile-modal').classList.remove('open')">✕</button>
     </div>
-    <div class="modal-body" id="mp-body" style="padding:20px 24px"></div>
+    <div class="modal-body" id="mp-body"></div>
   </div>
 </div>
 
@@ -2528,7 +2528,7 @@ async function openAddCase() {
         <textarea class="modal-input" id="f-notes" rows="4"></textarea>
       </div>
       <hr class="detail-divider">
-      <div class="detail-field full" style="display:flex;align-items:center;gap:32px;flex-wrap:nowrap">
+      <div class="detail-field full" style="display:flex;flex-direction:row;align-items:center;gap:32px;flex-wrap:nowrap">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap">
           <input type="checkbox" id="f-submitted" data-prev-submitted="false" data-prev-at=""
             style="width:17px;height:17px;accent-color:var(--brand);cursor:pointer">
@@ -2676,7 +2676,7 @@ async function openCaseDetail(caseId) {
           <textarea class="modal-input" id="f-notes" rows="4">${(c.notes||'').replace(/</g,'&lt;')}</textarea>
         </div>
         <hr class="detail-divider">
-        <div class="detail-field full" style="display:flex;align-items:center;gap:32px;flex-wrap:nowrap">
+        <div class="detail-field full" style="display:flex;flex-direction:row;align-items:center;gap:32px;flex-wrap:nowrap">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap">
             <input type="checkbox" id="f-submitted" ${c.submitted ? 'checked' : ''}
               data-prev-submitted="${c.submitted ? 'true' : 'false'}"
