@@ -766,7 +766,7 @@
           <div class="rep-stat-box rep-stat-tooltip-wrap">
             <div class="rsl">Total Searches <span class="info-icon">ⓘ</span></div>
             <div class="rsv" id="rep-total-searches">—</div>
-            <div class="rep-stat-tooltip">Searches and medical call outs</div>
+            <div class="rep-stat-tooltip">Search and Medical Call Outs</div>
           </div>
           <div class="rep-stat-box rep-stat-tooltip-wrap">
             <div class="rsl">Total Training <span class="info-icon">ⓘ</span></div>
@@ -787,6 +787,11 @@
             <div class="rsl">Team Average <span class="info-icon">ⓘ</span></div>
             <div class="rsv" id="rep-team-avg">—</div>
             <div class="rep-stat-tooltip">Team Average is mean of all member Eligible %</div>
+          </div>
+          <div class="rep-stat-box rep-stat-tooltip-wrap">
+            <div class="rsl">Team Median <span class="info-icon">ⓘ</span></div>
+            <div class="rsv" id="rep-team-median">—</div>
+            <div class="rep-stat-tooltip">Middle value of all member Eligible %</div>
           </div>
         </div>
         <button class="action-btn" onclick="exportReporting()">⬇ Export</button>
@@ -820,7 +825,7 @@
                 Eligible % <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Member All divided by Team Eligible</span></span>
               </th>
               <th class="sortable" data-col="searches" style="position:relative;">
-                Searches <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Searches and medical call outs</span></span>
+                Searches <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Search and Medical Call Outs</span></span>
               </th>
               <th class="sortable" data-col="searchPct">Search % <span class="sort-arrow">↕</span></th>
               <th class="sortable" data-col="training" style="position:relative;">
@@ -1079,11 +1084,12 @@ async function doLogin() {
     currentUser = data.user;
     // Fetch role
     const roleRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/user_roles?user_id=eq.${currentUser.id}&select=role`,
-      { headers: getHeaders() }
+      `${SUPABASE_URL}/rest/v1/rpc/get_my_role`,
+      { method: 'POST', headers: { ...getHeaders(), 'Content-Type': 'application/json' }, body: '{}' }
     );
     const roleData = await roleRes.json();
-    currentRole = roleData[0]?.role || null;
+    // rpc returns the value directly as a string e.g. "Admin"
+    currentRole = (typeof roleData === 'string' ? roleData : roleData[0]?.role) || null;
     if (!currentRole) throw new Error('No role assigned. Contact your administrator.');
     // Show app
     document.getElementById('login-screen').classList.add('hidden');
@@ -1406,7 +1412,7 @@ async function loadReporting() {
   try {
     // 1. Fetch cases in period
     const caseRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/case1?select=id,case_cat,case_type&date=gte.${from}&date=lte.${to}&limit=2000`,
+      `${SUPABASE_URL}/rest/v1/case1?select=id,case_cat,case_type,date&date=gte.${from}&date=lte.${to}&limit=2000`,
       { headers }
     );
     const periodCases = await caseRes.json();
@@ -1431,6 +1437,7 @@ async function loadReporting() {
     // 3. Fetch case1_employees in batches of 60
     const caseIds = periodCases.map(c => c.id);
     const empData = {}; // { employee_id: { all, searches, training, coreTrain, trainExt } }
+    const ceRawRows = []; // all raw employee-case pairs for rookie median calc
 
     for (let i = 0; i < caseIds.length; i += 60) {
       const chunk = caseIds.slice(i, i + 60);
@@ -1440,6 +1447,7 @@ async function loadReporting() {
       );
       const data = await r.json();
       if (Array.isArray(data)) {
+        ceRawRows.push(...data);
         data.forEach(row => {
           const c = caseMap[row.case_id];
           if (!c) return;
@@ -1488,6 +1496,73 @@ async function loadReporting() {
       ? Math.round(avgRows.reduce((s, r) => s + r.allPct, 0) / avgRows.length)
       : 0;
     document.getElementById('rep-team-avg').textContent = avg + '%';
+
+    // Team Median — Active + Rookie only, with 120-day rookie eligibility window
+    // Rules:
+    //   Active  → use full-period allPct
+    //   Rookie  → only include if (to - hire_date) >= 120 days
+    //             if rookieStart (hire_date+120d) <= from → full allPct (they were eligible the whole range)
+    //             if rookieStart is within [from, to]    → recalculate % from rookieStart to to
+    const medianPcts = [];
+    const toDate = new Date(to);
+    const fromDate = new Date(from);
+
+    repRows.forEach(r => {
+      if (!['Active','Rookie'].includes(r.e.status)) return;
+
+      if (r.e.status === 'Active') {
+        medianPcts.push(r.allPct);
+        return;
+      }
+
+      // Rookie
+      if (!r.e.hire_date) return; // no hire date → skip
+      const hireDate = new Date(r.e.hire_date);
+      const rookieStart = new Date(hireDate);
+      rookieStart.setDate(rookieStart.getDate() + 120);
+
+      // Exclude rookie if they haven't hit 120 days yet by the end of the period
+      if (rookieStart > toDate) return;
+
+      // If rookie was eligible for the entire period, use their normal allPct
+      if (rookieStart <= fromDate) {
+        medianPcts.push(r.allPct);
+        return;
+      }
+
+      // Partial period: rookie became eligible mid-range
+      // Sub-period = [rookieStartStr, to]
+      const rookieStartStr = rookieStart.toISOString().slice(0, 10);
+      const subCaseIds = new Set();
+      let subEligible = 0;
+      periodCases.forEach(c => {
+        if (c.date >= rookieStartStr) {
+          subCaseIds.add(c.id);
+          if (['S','T','TC'].includes(c.case_type)) subEligible++;
+        }
+      });
+
+      if (subEligible === 0) return;
+
+      // Count this rookie's attendance in the sub-period (all = S+T+TC+TE)
+      const rookieSubAll = ceRawRows.filter(row =>
+        row.employee_id === r.e.id &&
+        subCaseIds.has(row.case_id) &&
+        ['S','T','TC','TE'].includes(caseMap[row.case_id]?.case_type)
+      ).length;
+
+      medianPcts.push(Math.round(rookieSubAll / subEligible * 100));
+    });
+
+    medianPcts.sort((a, b) => a - b);
+    let median = 0;
+    if (medianPcts.length) {
+      const mid = Math.floor(medianPcts.length / 2);
+      median = medianPcts.length % 2 !== 0
+        ? medianPcts[mid]
+        : Math.round((medianPcts[mid - 1] + medianPcts[mid]) / 2);
+    }
+    document.getElementById('rep-team-median').textContent = median + '%';
 
     renderRepRows();
   } catch(e) {
