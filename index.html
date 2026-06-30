@@ -1087,9 +1087,14 @@ async function doLogin() {
       `${SUPABASE_URL}/rest/v1/rpc/get_my_role`,
       { method: 'POST', headers: { ...getHeaders(), 'Content-Type': 'application/json' }, body: '{}' }
     );
-    const roleData = await roleRes.json();
-    // rpc returns the value directly as a string e.g. "Admin"
-    currentRole = (typeof roleData === 'string' ? roleData : roleData[0]?.role) || null;
+    const roleRaw = await roleRes.text();
+    console.log('Role response:', roleRes.status, roleRaw);
+    // rpc/get_my_role returns: "Admin" (JSON string), or null, or [{...}]
+    let roleData;
+    try { roleData = JSON.parse(roleRaw); } catch(e) { roleData = roleRaw; }
+    if (typeof roleData === 'string') currentRole = roleData || null;
+    else if (Array.isArray(roleData)) currentRole = roleData[0]?.role || null;
+    else currentRole = null;
     if (!currentRole) throw new Error('No role assigned. Contact your administrator.');
     // Show app
     document.getElementById('login-screen').classList.add('hidden');
