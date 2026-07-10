@@ -2530,7 +2530,7 @@ async function openAddCase() {
       <hr class="detail-divider">
       <div class="detail-field full" style="display:flex;flex-direction:row;align-items:center;gap:32px;flex-wrap:nowrap">
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap">
-          <input type="checkbox" id="f-submitted" data-prev-submitted="false" data-prev-at=""
+          <input type="checkbox" id="f-submitted" data-prev-submitted="false" data-prev-at="" onchange="toggleSubmittedField()"
             style="width:17px;height:17px;accent-color:var(--brand);cursor:pointer">
           <span style="font-weight:600;font-size:13px;color:var(--text)">Submitted</span>
         </label>
@@ -2678,7 +2678,7 @@ async function openCaseDetail(caseId) {
         <hr class="detail-divider">
         <div class="detail-field full" style="display:flex;flex-direction:row;align-items:center;gap:32px;flex-wrap:nowrap">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap">
-            <input type="checkbox" id="f-submitted" ${c.submitted ? 'checked' : ''}
+            <input type="checkbox" id="f-submitted" ${c.submitted ? 'checked' : ''} onchange="toggleSubmittedField()"
               data-prev-submitted="${c.submitted ? 'true' : 'false'}"
               data-prev-at="${c.submitted_at || ''}"
               style="width:17px;height:17px;accent-color:var(--brand);cursor:pointer">
@@ -2712,7 +2712,7 @@ function updateEmpCount() {
   if (el) el.textContent = `${checked} selected`;
 }
 
-async function saveCaseDetail() {
+async function toggleSubmittedField() { const el = document.getElementById('f-submitted'); if (!el) return; if (!currentCaseId || currentCaseId === '__new__') return; const isSubmitted = el.checked; const wasSubmitted = el.dataset.prevSubmitted === 'true'; const prevAt = el.dataset.prevAt || null; const submittedAt = isSubmitted ? (wasSubmitted && prevAt ? prevAt : new Date().toISOString()) : null; el.disabled = true; try { const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/case1?id=eq.${currentCaseId}`, { method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }, body: JSON.stringify({ submitted: isSubmitted, submitted_at: submittedAt, updated_at: new Date().toISOString() }) }); if (!patchRes.ok) throw new Error(await patchRes.text()); el.dataset.prevSubmitted = String(isSubmitted); el.dataset.prevAt = submittedAt || ''; const idx = allCases.findIndex(c => c.id === currentCaseId); if (idx > -1) allCases[idx] = { ...allCases[idx], submitted: isSubmitted, submitted_at: submittedAt }; renderCases(); renderDashboard(); if (isSubmitted && !wasSubmitted) { await fetch(`${SUPABASE_URL}/rest/v1/case_audit_log`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }, body: JSON.stringify({ id: crypto.randomUUID(), case_id: currentCaseId, case_number: document.getElementById('f-case-number')?.value.trim() || '', action: 'submitted', snapshot: { submitted: true, submitted_at: submittedAt }, changed_at: submittedAt, }), }); } } catch (err) { el.checked = wasSubmitted; alert('Failed to update Submitted status: ' + err.message); } finally { el.disabled = false; } } async function saveCaseDetail() {
   if (!currentCaseId) return;
   const btns = document.querySelectorAll('.save-btn');
   btns.forEach(b => { b.disabled = true; b.textContent = 'Saving…'; });
@@ -2786,7 +2786,7 @@ async function saveCaseDetail() {
           body: JSON.stringify(payload) }
       );
       if (!postRes.ok) throw new Error(await postRes.text());
-      allCases.unshift({ ...payload, _resp_count: 0 });
+      allCases.unshift({ ...payload, _resp_count: 0 }); currentCaseId = savedCaseId;
     } else {
       // 1. PATCH the case
       const patchRes = await fetch(
