@@ -2872,7 +2872,7 @@ async function toggleSubmittedField() { const el = document.getElementById('f-su
 
   } catch(err) {
     btns.forEach(b => { b.disabled = false; b.textContent = '💾 Save Changes'; });
-    alert('Save failed: ' + err.message);
+    let __msg = err.message; try { const __p = JSON.parse(err.message); if (__p.code === '23505' && (__p.message||'').includes('case1_case_number_unique')) { __msg = `Case number "${document.getElementById('f-case-number')?.value.trim()}" already exists. Please use a different case number.`; } else if (__p.message) { __msg = __p.message; } } catch(_e) {} alert('Save failed: ' + __msg);
   }
 }
 
