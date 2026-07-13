@@ -790,14 +790,14 @@
             <div class="rep-stat-tooltip">Eligible is Type = S + T + TC</div>
           </div>
           <div class="rep-stat-box rep-stat-tooltip-wrap">
-            <div class="rsl">Team Average <span class="info-icon">ⓘ</span></div>
+            <div class="rsl">Team Ave W/O Rookie <span class="info-icon">ⓘ</span></div>
             <div class="rsv" id="rep-team-avg">—</div>
-            <div class="rep-stat-tooltip">Team Average is mean of all member Eligible %</div>
+            <div class="rep-stat-tooltip">Mean of Eligible % for members with status = Active only (excludes Rookie and Admin)</div>
           </div>
           <div class="rep-stat-box rep-stat-tooltip-wrap">
-            <div class="rsl">Team Median <span class="info-icon">ⓘ</span></div>
+            <div class="rsl">Team Ave with Rookie <span class="info-icon">ⓘ</span></div>
             <div class="rsv" id="rep-team-median">—</div>
-            <div class="rep-stat-tooltip">Middle value of all member Eligible %</div>
+            <div class="rep-stat-tooltip">Middle value of all member Eligible % (Active + Rookie)</div>
           </div>
         </div>
         <button class="action-btn" onclick="exportReporting()">⬇ Export</button>
@@ -1718,16 +1718,9 @@ async function loadReporting() {
       };
     });
 
-    // Team Average — exclude members hired < 1 year from today,
-    // UNLESS the report "To" date is after 2025-12-31 (then include everyone).
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const oneYearAgo = new Date();
-    oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
-    const oneYearAgoStr = oneYearAgo.toISOString().slice(0, 10);
-    const includeNewMembers = to > '2025-12-31';
-    const avgRows = includeNewMembers
-      ? repRows
-      : repRows.filter(r => !r.e.hire_date || r.e.hire_date <= oneYearAgoStr);
+    // Team Ave W/O Rookie — matches Dashboard: mean of Eligible % for status = 'Active' only
+    // (excludes Rookie and Admin, no hire-date filtering)
+    const avgRows = repRows.filter(r => r.e.status === 'Active');
     const avg = avgRows.length
       ? Math.round(avgRows.reduce((s, r) => s + r.allPct, 0) / avgRows.length)
       : 0;
