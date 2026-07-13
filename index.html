@@ -942,16 +942,15 @@
     <div id="page-training" class="page">
       <div class="section-card" style="margin-bottom:16px">
         <div class="section-header">
-          <div style="display:flex;align-items:center;gap:14px">
-            <h3 id="core-course-title">Core Training</h3>
+          <div style="display:flex;align-items:center;gap:12px">
+            <h3>Core Training</h3>
+            <select id="core-course-select" class="modal-input" style="width:auto;min-width:170px" onchange="switchCoreCourse(this.value)"></select>
           </div>
           <div class="section-header-actions">
-            <div style="display:flex;gap:4px" id="core-course-tabs">
-              <button class="action-btn" data-course="CPR" onclick="switchCoreCourse('CPR')">CPR</button>
-              <button class="action-btn" data-course="AVI" onclick="switchCoreCourse('AVI')">AVI</button>
-              <button class="action-btn" data-course="WFA" onclick="switchCoreCourse('WFA')">WFA</button>
-            </div>
-            <button class="action-btn primary admin-only" onclick="openEditCourse()">✎ Edit Course</button>
+            <button class="export-btn" onclick="exportTraining('csv')">⬇ CSV</button>
+            <button class="export-btn" onclick="exportTraining('pdf')">⬇ PDF</button>
+            <button class="action-btn primary admin-only" onclick="openAddCourse()">＋ Add Course</button>
+            <button class="action-btn admin-only" onclick="openEditCourse()">✎ Edit Course</button>
           </div>
         </div>
         <div id="core-course-info" style="padding:16px 20px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:16px;font-size:13px"></div>
@@ -971,8 +970,12 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr>
-              <th>Call #</th><th>Member Name</th><th>Status</th><th>Date Completed</th><th>Grade</th><th>Time</th>
+            <thead><tr id="core-roster-thead">
+              <th>Call #</th>
+              <th class="sortable" data-col="last_name">Member Name <span class="sort-arrow">↕</span></th>
+              <th>Status</th>
+              <th class="sortable" data-col="completion_date">Date Completed <span class="sort-arrow">↕</span></th>
+              <th>Grade</th><th>Time</th>
             </tr></thead>
             <tbody id="core-roster-tbody">
               <tr><td colspan="6"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
@@ -1129,11 +1132,10 @@
           <input class="modal-input" id="cm-duration" type="number" min="0">
         </div>
         <div class="detail-field">
-          <div class="detail-label">Course Locked</div>
-          <select class="modal-input" id="cm-locked">
-            <option value="false">No</option>
-            <option value="true">Yes</option>
-          </select>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:18px">
+            <input type="checkbox" id="cm-locked" style="width:16px;height:16px;accent-color:var(--brand);cursor:pointer">
+            <span class="detail-label" style="margin:0">Course Locked <span style="text-transform:none;font-weight:400">— disables editing this course's roster</span></span>
+          </label>
         </div>
         <hr class="detail-divider">
         <div class="detail-field full" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)">
@@ -1153,6 +1155,55 @@
       <button class="save-btn" onclick="saveCourseInfo()">💾 Save Changes</button>
       <button class="cancel-btn" onclick="document.getElementById('course-modal').classList.remove('open')">Cancel</button>
       <span class="save-msg" id="cm-save-msg">✓ Saved!</span>
+    </div>
+  </div>
+</div>
+
+<!-- ADD COURSE MODAL -->
+<div class="modal-overlay" id="add-course-modal">
+  <div class="modal" style="width:520px">
+    <div class="modal-header">
+      <h3>＋ Add Course</h3>
+      <button class="modal-close" onclick="document.getElementById('add-course-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="detail-grid">
+        <div class="detail-field full">
+          <div class="detail-label">Course Name *</div>
+          <input class="modal-input" id="ac-name" placeholder="e.g. Physical Condition">
+        </div>
+        <div class="detail-field full">
+          <div class="detail-label">Description</div>
+          <textarea class="modal-input" id="ac-desc" rows="3"></textarea>
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Cert Duration (Months) <span style="text-transform:none;font-weight:400">— how long a completed cert is valid</span></div>
+          <input class="modal-input" id="ac-duration" type="number" min="0">
+        </div>
+        <div class="detail-field">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:18px">
+            <input type="checkbox" id="ac-locked" style="width:16px;height:16px;accent-color:var(--brand);cursor:pointer">
+            <span class="detail-label" style="margin:0">Course Locked</span>
+          </label>
+        </div>
+        <hr class="detail-divider">
+        <div class="detail-field full" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)">
+          Training Window — time allowed for members to complete this training
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Window Start</div>
+          <input class="modal-input" id="ac-start" type="date">
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Window End</div>
+          <input class="modal-input" id="ac-end" type="date">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="save-btn" onclick="saveNewCourse()">＋ Create Course</button>
+      <button class="cancel-btn" onclick="document.getElementById('add-course-modal').classList.remove('open')">Cancel</button>
+      <span class="save-msg" id="ac-save-msg">✓ Created!</span>
     </div>
   </div>
 </div>
@@ -1311,6 +1362,7 @@ let currentCoreRecordId = null;
 // ── SORT STATE ────────────────────────────────────────────────────
 let casesSort  = { col: 'date', dir: 'desc' };
 let rosterSort = { col: 'call_no', dir: 'asc' };
+let coreSort   = { col: 'last_name', dir: 'asc' };
 
 // ── MEMBER FILTER STATE ───────────────────────────────────────────
 let memberFilterCaseIds = null;  // null = no filter; Set = matched case ids
@@ -2353,6 +2405,19 @@ document.getElementById('roster-thead').addEventListener('click', e => {
   renderRoster();
 });
 
+// ── CORE TRAINING SORT CLICK ────────────────────────────────────────
+document.getElementById('core-roster-thead').addEventListener('click', e => {
+  const th = e.target.closest('th.sortable');
+  if (!th) return;
+  const col = th.dataset.col;
+  if (coreSort.col === col) {
+    coreSort.dir = coreSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    coreSort = { col, dir: col === 'completion_date' ? 'desc' : 'asc' };
+  }
+  renderTraining();
+});
+
 // ── EXPORT CSV ────────────────────────────────────────────────────
 function exportCasesCSV() {
   const visibleRows = allCases.filter(c => {
@@ -3103,17 +3168,33 @@ function coreStatusBadge(status) {
   return `<span class="pill ${m[status]||'badge-gray'}">${status}</span>`;
 }
 
-function renderTraining() {
-  // Tab active state
-  document.querySelectorAll('#core-course-tabs button').forEach(b => {
-    b.classList.toggle('primary', b.dataset.course === currentCoreCourse);
+function getCoreCourseList() {
+  // Distinct course names, unlocked ("active") courses first, alphabetical within each group
+  const byName = {};
+  allCoreRecords.forEach(r => { if (!byName[r.course_name]) byName[r.course_name] = r; });
+  return Object.values(byName).sort((a, b) => {
+    if (!!a.locked !== !!b.locked) return a.locked ? 1 : -1;
+    return a.course_name.localeCompare(b.course_name);
   });
+}
+
+function renderTraining() {
+  const courseList = getCoreCourseList();
+  if (!courseList.find(c => c.course_name === currentCoreCourse) && courseList.length) {
+    currentCoreCourse = courseList[0].course_name;
+  }
+
+  // Populate dropdown
+  const sel = document.getElementById('core-course-select');
+  sel.innerHTML = courseList.map(c =>
+    `<option value="${c.course_name}" ${c.course_name===currentCoreCourse?'selected':''}>${c.course_name}${c.locked?' 🔒':''}</option>`
+  ).join('');
 
   const courseRecs = allCoreRecords.filter(r => r.course_name === currentCoreCourse);
 
   // Course info panel (fields are shared across all rows for this course)
   const info = courseRecs[0] || {};
-  document.getElementById('core-course-title').textContent = `Core Training — ${currentCoreCourse}`;
+  const canEdit = currentRole === 'Admin';
   document.getElementById('core-course-info').innerHTML = `
     <div>
       <div class="detail-label" style="margin-bottom:4px">Description</div>
@@ -3129,7 +3210,12 @@ function renderTraining() {
     </div>
     <div>
       <div class="detail-label" style="margin-bottom:4px">Course Locked</div>
-      <div>${info.locked ? '🔒 Yes' : 'No'}</div>
+      <label style="display:flex;align-items:center;gap:6px;${canEdit?'cursor:pointer':''}">
+        <input type="checkbox" ${info.locked?'checked':''} ${canEdit?'':'disabled'}
+          style="width:15px;height:15px;accent-color:var(--brand);${canEdit?'cursor:pointer':''}"
+          onchange="toggleCourseLocked(this.checked)">
+        ${info.locked ? '🔒 Locked' : 'Unlocked'}
+      </label>
     </div>`;
 
   // Roster filters
@@ -3143,14 +3229,37 @@ function renderTraining() {
   if (search) rows = rows.filter(x =>
     (x.emp.call_no||'').toLowerCase().includes(search) ||
     `${x.emp.first_name} ${x.emp.last_name}`.toLowerCase().includes(search));
-  rows.sort((a,b) => (a.emp.last_name||'').localeCompare(b.emp.last_name||''));
 
-  document.getElementById('core-roster-count').textContent = `${rows.length} member${rows.length!==1?'s':''}`;
-  const canEdit = currentRole === 'Admin';
+  // Sort
+  rows.sort((a, b) => {
+    let av, bv;
+    if (coreSort.col === 'completion_date') {
+      av = a.rec.completion_date || '';
+      bv = b.rec.completion_date || '';
+    } else {
+      av = (a.emp.last_name || '').toLowerCase();
+      bv = (b.emp.last_name || '').toLowerCase();
+    }
+    if (av < bv) return coreSort.dir === 'asc' ? -1 : 1;
+    if (av > bv) return coreSort.dir === 'asc' ?  1 : -1;
+    return 0;
+  });
+
+  // Update header sort arrows
+  document.querySelectorAll('#core-roster-thead th.sortable').forEach(th => {
+    const isActive = th.dataset.col === coreSort.col;
+    th.classList.toggle('sort-asc',  isActive && coreSort.dir === 'asc');
+    th.classList.toggle('sort-desc', isActive && coreSort.dir === 'desc');
+    const arrow = th.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = isActive ? (coreSort.dir === 'asc' ? '↑' : '↓') : '↕';
+  });
+
+  document.getElementById('core-roster-count').textContent = `${rows.length} member${rows.length!==1?'s':''}${info.locked ? ' · 🔒 course locked' : ''}`;
+  const canEditRoster = canEdit && !info.locked;
   document.getElementById('core-roster-tbody').innerHTML = rows.length
     ? rows.map(({rec, emp}) => {
         const status = coreCompletionStatus(rec);
-        const rowClick = canEdit ? `onclick="openCoreMemberEdit('${rec.id}')" style="cursor:pointer"` : '';
+        const rowClick = canEditRoster ? `onclick="openCoreMemberEdit('${rec.id}')" style="cursor:pointer"` : '';
         return `<tr ${rowClick}>
           <td><strong>${emp.call_no||'—'}</strong></td>
           <td>${emp.last_name}, ${emp.first_name}</td>
@@ -3163,6 +3272,89 @@ function renderTraining() {
     : '<tr><td colspan="6"><div class="empty">No members match.</div></td></tr>';
 }
 
+async function toggleCourseLocked(checked) {
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/core?course_name=eq.${currentCoreCourse}`,
+      { method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ locked: checked, updated_at: new Date().toISOString() }) }
+    );
+    if (!res.ok) throw new Error(await res.text());
+    allCoreRecords.forEach(r => { if (r.course_name === currentCoreCourse) r.locked = checked; });
+    renderTraining();
+  } catch(err) {
+    alert('Failed to update lock status: ' + err.message);
+    renderTraining();
+  }
+}
+
+// ── EXPORT (current course's filtered/sorted roster) ────────────────
+function getCoreExportRows() {
+  const empById = {};
+  allEmployees.forEach(e => { empById[e.id] = e; });
+  const showIncomplete = document.getElementById('core-show-incomplete').checked;
+  const search = document.getElementById('core-search').value.toLowerCase();
+
+  let rows = allCoreRecords
+    .filter(r => r.course_name === currentCoreCourse)
+    .map(r => ({ rec: r, emp: empById[r.employee_id] }))
+    .filter(x => x.emp);
+  if (showIncomplete) rows = rows.filter(x => coreCompletionStatus(x.rec) !== 'Completed');
+  if (search) rows = rows.filter(x =>
+    (x.emp.call_no||'').toLowerCase().includes(search) ||
+    `${x.emp.first_name} ${x.emp.last_name}`.toLowerCase().includes(search));
+
+  rows.sort((a, b) => {
+    let av, bv;
+    if (coreSort.col === 'completion_date') { av = a.rec.completion_date || ''; bv = b.rec.completion_date || ''; }
+    else { av = (a.emp.last_name||'').toLowerCase(); bv = (b.emp.last_name||'').toLowerCase(); }
+    if (av < bv) return coreSort.dir === 'asc' ? -1 : 1;
+    if (av > bv) return coreSort.dir === 'asc' ?  1 : -1;
+    return 0;
+  });
+  return rows;
+}
+
+function exportTraining(type) {
+  const rows = getCoreExportRows();
+  const headers = ['Call #','Member Name','Status','Date Completed','Grade','Time'];
+  const getData = ({rec, emp}) => [
+    emp.call_no||'', `${emp.last_name}, ${emp.first_name}`, coreCompletionStatus(rec),
+    rec.completion_date ? fmt(rec.completion_date) : '', rec.grade||'', rec.time||''
+  ];
+
+  if (type === 'csv') {
+    const csv = [headers, ...rows.map(getData)]
+      .map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))
+      .join('\n');
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = `WSAR_CoreTraining_${currentCoreCourse}_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  } else {
+    const tableRows = rows.map(r => `<tr>${getData(r).map(v => `<td>${v}</td>`).join('')}</tr>`).join('');
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html><head><title>WSAR Core Training — ${currentCoreCourse}</title>
+      <style>
+        body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; }
+        h2 { margin-bottom: 4px; }
+        p { color: #666; margin-bottom: 12px; font-size: 11px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #1e40af; color: white; padding: 7px 10px; text-align: left; font-size: 11px; }
+        td { padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
+        tr:nth-child(even) td { background: #f8fafc; }
+        @media print { body { padding: 0; } }
+      </style></head><body>
+      <h2>WSAR Core Training — ${currentCoreCourse}</h2>
+      <p>Exported ${new Date().toLocaleDateString()} — ${rows.length} member${rows.length!==1?'s':''}</p>
+      <table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${tableRows}</tbody></table>
+      <script>window.onload=()=>{window.print();}<\/script>
+      </body></html>`);
+    win.document.close();
+  }
+}
+
 // ── EDIT COURSE (bulk, applies to all rows for this course_name) ───
 function openEditCourse() {
   const courseRecs = allCoreRecords.filter(r => r.course_name === currentCoreCourse);
@@ -3170,7 +3362,7 @@ function openEditCourse() {
   document.getElementById('cm-title').textContent = `Edit Course — ${currentCoreCourse}`;
   document.getElementById('cm-desc').value = info.course_description || '';
   document.getElementById('cm-duration').value = info.cert_duration_months || '';
-  document.getElementById('cm-locked').value = info.locked ? 'true' : 'false';
+  document.getElementById('cm-locked').checked = !!info.locked;
   document.getElementById('cm-start').value = info.window_start || '';
   document.getElementById('cm-end').value = info.window_end || '';
   document.getElementById('course-modal').classList.add('open');
@@ -3183,7 +3375,7 @@ async function saveCourseInfo() {
   const payload = {
     course_description: document.getElementById('cm-desc').value.trim() || null,
     cert_duration_months: parseInt(document.getElementById('cm-duration').value, 10) || null,
-    locked: document.getElementById('cm-locked').value === 'true',
+    locked: document.getElementById('cm-locked').checked,
     window_start: document.getElementById('cm-start').value || null,
     window_end: document.getElementById('cm-end').value || null,
     updated_at: new Date().toISOString(),
@@ -3205,6 +3397,68 @@ async function saveCourseInfo() {
     alert('Save failed: ' + err.message);
   } finally {
     btn.disabled = false; btn.textContent = '💾 Save Changes';
+  }
+}
+
+// ── ADD NEW COURSE ──────────────────────────────────────────────────
+function openAddCourse() {
+  document.getElementById('ac-name').value = '';
+  document.getElementById('ac-desc').value = '';
+  document.getElementById('ac-duration').value = '';
+  document.getElementById('ac-locked').checked = false;
+  document.getElementById('ac-start').value = '';
+  document.getElementById('ac-end').value = '';
+  document.getElementById('add-course-modal').classList.add('open');
+}
+document.getElementById('add-course-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
+});
+
+async function saveNewCourse() {
+  const name = document.getElementById('ac-name').value.trim();
+  if (!name) { alert('Course Name is required.'); return; }
+  const existing = getCoreCourseList().find(c => c.course_name.toLowerCase() === name.toLowerCase());
+  if (existing) { alert(`A course named "${existing.course_name}" already exists.`); return; }
+
+  const courseFields = {
+    course_name: name,
+    course_description: document.getElementById('ac-desc').value.trim() || null,
+    cert_duration_months: parseInt(document.getElementById('ac-duration').value, 10) || null,
+    locked: document.getElementById('ac-locked').checked,
+    window_start: document.getElementById('ac-start').value || null,
+    window_end: document.getElementById('ac-end').value || null,
+  };
+
+  const activeEmps = allEmployees.filter(e => ['Active','Rookie'].includes(e.status));
+  const rows = activeEmps.map(e => ({
+    id: crypto.randomUUID(),
+    employee_id: e.id,
+    ...courseFields,
+  }));
+
+  const btn = document.querySelector('#add-course-modal .save-btn');
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/core`,
+      { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        body: JSON.stringify(rows) }
+    );
+    if (!res.ok) throw new Error(await res.text());
+    const inserted = await res.json();
+    allCoreRecords.push(...inserted);
+    currentCoreCourse = name;
+    renderTraining();
+    const msg = document.getElementById('ac-save-msg');
+    msg.style.display = 'inline';
+    setTimeout(() => {
+      msg.style.display = 'none';
+      document.getElementById('add-course-modal').classList.remove('open');
+    }, 900);
+  } catch(err) {
+    alert('Create failed: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '＋ Create Course';
   }
 }
 
