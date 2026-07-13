@@ -953,7 +953,7 @@
             <button class="action-btn admin-only" onclick="openEditCourse()">✎ Edit Course</button>
           </div>
         </div>
-        <div id="core-course-info" style="padding:16px 20px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:16px;font-size:13px"></div>
+        <div id="core-course-info" style="padding:16px 20px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:16px;font-size:13px"></div>
       </div>
 
       <div class="section-card">
@@ -1128,6 +1128,10 @@
           <textarea class="modal-input" id="cm-desc" rows="3"></textarea>
         </div>
         <div class="detail-field">
+          <div class="detail-label">Case # <span style="text-transform:none;font-weight:400">(optional)</span></div>
+          <input class="modal-input" id="cm-case-number" placeholder="e.g. 2606-0675">
+        </div>
+        <div class="detail-field">
           <div class="detail-label">Cert Duration (Months) <span style="text-transform:none;font-weight:400">— how long a completed cert is valid</span></div>
           <input class="modal-input" id="cm-duration" type="number" min="0">
         </div>
@@ -1175,6 +1179,10 @@
         <div class="detail-field full">
           <div class="detail-label">Description</div>
           <textarea class="modal-input" id="ac-desc" rows="3"></textarea>
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Case # <span style="text-transform:none;font-weight:400">(optional)</span></div>
+          <input class="modal-input" id="ac-case-number" placeholder="e.g. 2606-0675">
         </div>
         <div class="detail-field">
           <div class="detail-label">Cert Duration (Months) <span style="text-transform:none;font-weight:400">— how long a completed cert is valid</span></div>
@@ -3201,6 +3209,10 @@ function renderTraining() {
       <div>${info.course_description || '—'}</div>
     </div>
     <div>
+      <div class="detail-label" style="margin-bottom:4px">Case #</div>
+      <div>${info.case_number || '—'}</div>
+    </div>
+    <div>
       <div class="detail-label" style="margin-bottom:4px">Cert Duration</div>
       <div>${info.cert_duration_months ? info.cert_duration_months + ' months' : '—'}</div>
     </div>
@@ -3260,16 +3272,74 @@ function renderTraining() {
     ? rows.map(({rec, emp}) => {
         const status = coreCompletionStatus(rec);
         const rowClick = canEditRoster ? `onclick="openCoreMemberEdit('${rec.id}')" style="cursor:pointer"` : '';
+        const statusCell = canEditRoster
+          ? `<div style="display:flex;align-items:center;gap:6px">
+               <select class="modal-input" style="width:auto;padding:4px 8px;font-size:12.5px" onclick="event.stopPropagation()" onchange="updateCoreStatus('${rec.id}', this.value)">
+                 <option value="Not Started" ${!rec.completion_date?'selected':''}>Not Started</option>
+                 <option value="Completed" ${rec.completion_date?'selected':''}>Completed</option>
+               </select>
+               ${status==='Expired' ? '<span class="pill badge-red">⚠ Expired</span>' : ''}
+             </div>`
+          : coreStatusBadge(status);
+        const dateCell = canEditRoster
+          ? `<input type="date" class="modal-input" style="width:auto;padding:4px 8px;font-size:12.5px" value="${rec.completion_date||''}" onclick="event.stopPropagation()" onchange="updateCoreDate('${rec.id}', this.value)">`
+          : (rec.completion_date ? fmt(rec.completion_date) : '—');
         return `<tr ${rowClick}>
           <td><strong>${emp.call_no||'—'}</strong></td>
           <td>${emp.last_name}, ${emp.first_name}</td>
-          <td>${coreStatusBadge(status)}</td>
-          <td class="muted">${rec.completion_date ? fmt(rec.completion_date) : '—'}</td>
+          <td>${statusCell}</td>
+          <td class="muted">${dateCell}</td>
           <td class="muted">${rec.grade || '—'}</td>
           <td class="muted">${rec.time || '—'}</td>
         </tr>`;
       }).join('')
     : '<tr><td colspan="6"><div class="empty">No members match.</div></td></tr>';
+}
+
+async function updateCoreStatus(recordId, newStatus) {
+  const rec = allCoreRecords.find(r => r.id === recordId);
+  if (!rec) return;
+  const payload = { updated_at: new Date().toISOString() };
+  if (newStatus === 'Completed') {
+    payload.completion_date = rec.completion_date || new Date().toISOString().slice(0,10);
+    payload.grade = rec.grade || 'Pass';
+  } else {
+    payload.completion_date = null;
+    payload.grade = null;
+  }
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/core?id=eq.${recordId}`,
+      { method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload) }
+    );
+    if (!res.ok) throw new Error(await res.text());
+    Object.assign(rec, payload);
+    renderTraining();
+  } catch(err) {
+    alert('Failed to update status: ' + err.message);
+    renderTraining();
+  }
+}
+
+async function updateCoreDate(recordId, newDate) {
+  const rec = allCoreRecords.find(r => r.id === recordId);
+  if (!rec) return;
+  const payload = { completion_date: newDate || null, updated_at: new Date().toISOString() };
+  payload.grade = newDate ? 'Pass' : null;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/core?id=eq.${recordId}`,
+      { method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload) }
+    );
+    if (!res.ok) throw new Error(await res.text());
+    Object.assign(rec, payload);
+    renderTraining();
+  } catch(err) {
+    alert('Failed to update date: ' + err.message);
+    renderTraining();
+  }
 }
 
 async function toggleCourseLocked(checked) {
@@ -3345,7 +3415,7 @@ function exportTraining(type) {
         tr:nth-child(even) td { background: #f8fafc; }
         @media print { body { padding: 0; } }
       </style></head><body>
-      <h2>WSAR Core Training — ${currentCoreCourse}</h2>
+      <h2>WSAR Core Training — ${currentCoreCourse}${rows[0]?.rec?.case_number ? ' (Case ' + rows[0].rec.case_number + ')' : ''}</h2>
       <p>Exported ${new Date().toLocaleDateString()} — ${rows.length} member${rows.length!==1?'s':''}</p>
       <table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
       <tbody>${tableRows}</tbody></table>
@@ -3361,6 +3431,7 @@ function openEditCourse() {
   const info = courseRecs[0] || {};
   document.getElementById('cm-title').textContent = `Edit Course — ${currentCoreCourse}`;
   document.getElementById('cm-desc').value = info.course_description || '';
+  document.getElementById('cm-case-number').value = info.case_number || '';
   document.getElementById('cm-duration').value = info.cert_duration_months || '';
   document.getElementById('cm-locked').checked = !!info.locked;
   document.getElementById('cm-start').value = info.window_start || '';
@@ -3374,6 +3445,7 @@ document.getElementById('course-modal').addEventListener('click', function(e) {
 async function saveCourseInfo() {
   const payload = {
     course_description: document.getElementById('cm-desc').value.trim() || null,
+    case_number: document.getElementById('cm-case-number').value.trim() || null,
     cert_duration_months: parseInt(document.getElementById('cm-duration').value, 10) || null,
     locked: document.getElementById('cm-locked').checked,
     window_start: document.getElementById('cm-start').value || null,
@@ -3404,6 +3476,7 @@ async function saveCourseInfo() {
 function openAddCourse() {
   document.getElementById('ac-name').value = '';
   document.getElementById('ac-desc').value = '';
+  document.getElementById('ac-case-number').value = '';
   document.getElementById('ac-duration').value = '';
   document.getElementById('ac-locked').checked = false;
   document.getElementById('ac-start').value = '';
@@ -3423,6 +3496,7 @@ async function saveNewCourse() {
   const courseFields = {
     course_name: name,
     course_description: document.getElementById('ac-desc').value.trim() || null,
+    case_number: document.getElementById('ac-case-number').value.trim() || null,
     cert_duration_months: parseInt(document.getElementById('ac-duration').value, 10) || null,
     locked: document.getElementById('ac-locked').checked,
     window_start: document.getElementById('ac-start').value || null,
