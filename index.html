@@ -669,11 +669,11 @@
     <a data-page="cases">
       <span class="icon">📋</span> Case Log
     </a>
-    <a data-page="training">
-      <span class="icon">🎓</span> Training
-    </a>
     <a data-page="reporting">
       <span class="icon">📈</span> Reporting
+    </a>
+    <a data-page="training">
+      <span class="icon">🎓</span> Core Training
     </a>
   </nav>
   <div class="status-bar">
@@ -3271,10 +3271,12 @@ function renderTraining() {
   document.getElementById('core-roster-tbody').innerHTML = rows.length
     ? rows.map(({rec, emp}) => {
         const status = coreCompletionStatus(rec);
-        const rowClick = canEditRoster ? `onclick="openCoreMemberEdit('${rec.id}')" style="cursor:pointer"` : '';
+        const selStyle = rec.completion_date
+          ? 'width:auto;padding:4px 8px;font-size:12.5px;background:#dcfce7;color:#15803d;border-color:#86efac;font-weight:600;'
+          : 'width:auto;padding:4px 8px;font-size:12.5px;';
         const statusCell = canEditRoster
           ? `<div style="display:flex;align-items:center;gap:6px">
-               <select class="modal-input" style="width:auto;padding:4px 8px;font-size:12.5px" onclick="event.stopPropagation()" onchange="updateCoreStatus('${rec.id}', this.value)">
+               <select class="modal-input" style="${selStyle}" onclick="event.stopPropagation()" onchange="updateCoreStatus('${rec.id}', this.value)">
                  <option value="Not Started" ${!rec.completion_date?'selected':''}>Not Started</option>
                  <option value="Completed" ${rec.completion_date?'selected':''}>Completed</option>
                </select>
@@ -3284,7 +3286,11 @@ function renderTraining() {
         const dateCell = canEditRoster
           ? `<input type="date" class="modal-input" style="width:auto;padding:4px 8px;font-size:12.5px" value="${rec.completion_date||''}" onclick="event.stopPropagation()" onchange="updateCoreDate('${rec.id}', this.value)">`
           : (rec.completion_date ? fmt(rec.completion_date) : '—');
-        return `<tr ${rowClick}>
+        const rowStyleParts = [];
+        if (status === 'Not Started') rowStyleParts.push('background:#fef9c3');
+        if (canEditRoster) rowStyleParts.push('cursor:pointer');
+        const rowOnClick = canEditRoster ? `onclick="openCoreMemberEdit('${rec.id}')"` : '';
+        return `<tr ${rowOnClick} style="${rowStyleParts.join(';')}">
           <td><strong>${emp.call_no||'—'}</strong></td>
           <td>${emp.last_name}, ${emp.first_name}</td>
           <td>${statusCell}</td>
