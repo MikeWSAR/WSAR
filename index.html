@@ -959,7 +959,10 @@
       <div class="section-card">
         <div class="section-header">
           <h3>Member Roster</h3>
-          <span class="count" id="core-roster-count"></span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="pill badge-green" id="core-completed-count" style="font-size:12px;padding:4px 10px"></span>
+            <span class="count" id="core-roster-count"></span>
+          </div>
         </div>
         <div class="filter-row">
           <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;color:var(--muted)">
@@ -973,7 +976,7 @@
             <thead><tr id="core-roster-thead">
               <th>Call #</th>
               <th class="sortable" data-col="last_name">Member Name <span class="sort-arrow">↕</span></th>
-              <th>Status</th>
+              <th class="sortable" data-col="status">Status <span class="sort-arrow">↕</span></th>
               <th class="sortable" data-col="completion_date">Date Completed <span class="sort-arrow">↕</span></th>
               <th>Grade</th><th>Time</th>
             </tr></thead>
@@ -3199,6 +3202,8 @@ function renderTraining() {
   ).join('');
 
   const courseRecs = allCoreRecords.filter(r => r.course_name === currentCoreCourse);
+  const completedCount = courseRecs.filter(r => coreCompletionStatus(r) === 'Completed').length;
+  document.getElementById('core-completed-count').textContent = `✓ ${completedCount} / ${courseRecs.length} Completed`;
 
   // Course info panel (fields are shared across all rows for this course)
   const info = courseRecs[0] || {};
@@ -3243,11 +3248,15 @@ function renderTraining() {
     `${x.emp.first_name} ${x.emp.last_name}`.toLowerCase().includes(search));
 
   // Sort
+  const statusRank = { 'Not Started': 0, 'Completed': 1, 'Expired': 2 };
   rows.sort((a, b) => {
     let av, bv;
     if (coreSort.col === 'completion_date') {
       av = a.rec.completion_date || '';
       bv = b.rec.completion_date || '';
+    } else if (coreSort.col === 'status') {
+      av = statusRank[coreCompletionStatus(a.rec)] ?? 0;
+      bv = statusRank[coreCompletionStatus(b.rec)] ?? 0;
     } else {
       av = (a.emp.last_name || '').toLowerCase();
       bv = (b.emp.last_name || '').toLowerCase();
@@ -3380,9 +3389,11 @@ function getCoreExportRows() {
     (x.emp.call_no||'').toLowerCase().includes(search) ||
     `${x.emp.first_name} ${x.emp.last_name}`.toLowerCase().includes(search));
 
+  const statusRank2 = { 'Not Started': 0, 'Completed': 1, 'Expired': 2 };
   rows.sort((a, b) => {
     let av, bv;
     if (coreSort.col === 'completion_date') { av = a.rec.completion_date || ''; bv = b.rec.completion_date || ''; }
+    else if (coreSort.col === 'status') { av = statusRank2[coreCompletionStatus(a.rec)] ?? 0; bv = statusRank2[coreCompletionStatus(b.rec)] ?? 0; }
     else { av = (a.emp.last_name||'').toLowerCase(); bv = (b.emp.last_name||'').toLowerCase(); }
     if (av < bv) return coreSort.dir === 'asc' ? -1 : 1;
     if (av > bv) return coreSort.dir === 'asc' ?  1 : -1;
