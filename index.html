@@ -733,7 +733,7 @@
         <div class="stat-card" style="position:relative;">
           <div class="stat-top">
             <div class="stat-icon-box sib-red">↗</div>
-            <div class="label">Team Average <span class="info-icon col-tip-trigger" style="font-size:11px;">ⓘ<span class="col-tip">Team Average is mean of all member Eligible %</span></span></div>
+            <div class="label">Team Ave w/o Rookie <span class="info-icon col-tip-trigger" style="font-size:11px;">ⓘ<span class="col-tip">Mean of Eligible % for members with status = Active only (excludes Rookie and Admin)</span></span></div>
           </div>
           <div class="value" id="s-avg">—</div>
         </div>
@@ -1529,9 +1529,20 @@ async function renderDashboard() {
     });
     const avg = Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length);
     document.getElementById('s-mean-avg').textContent = avg + '%';
-    document.getElementById('s-avg').textContent = avg + '%';
   } else {
     document.getElementById('s-mean-avg').textContent = '—';
+  }
+
+  // --- Team Ave w/o Rookie: status = 'Active' only (excludes Rookie and Admin) ---
+  const activeOnlyEmps = allEmployees.filter(e => e.status === 'Active');
+  if (totalEligible > 0 && activeOnlyEmps.length > 0) {
+    const activeOnlyPcts = activeOnlyEmps.map(e => {
+      const d = empData[e.id] || { all: 0 };
+      return Math.round(d.all / totalEligible * 100);
+    });
+    const activeOnlyAvg = Math.round(activeOnlyPcts.reduce((a, b) => a + b, 0) / activeOnlyPcts.length);
+    document.getElementById('s-avg').textContent = activeOnlyAvg + '%';
+  } else {
     document.getElementById('s-avg').textContent = '—';
   }
 
