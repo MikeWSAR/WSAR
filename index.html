@@ -669,6 +669,9 @@
     <a data-page="cases">
       <span class="icon">📋</span> Case Log
     </a>
+    <a data-page="training">
+      <span class="icon">🎓</span> Training
+    </a>
     <a data-page="reporting">
       <span class="icon">📈</span> Reporting
     </a>
@@ -935,6 +938,50 @@
       </div>
     </div>
 
+    <!-- CORE TRAINING PAGE -->
+    <div id="page-training" class="page">
+      <div class="section-card" style="margin-bottom:16px">
+        <div class="section-header">
+          <div style="display:flex;align-items:center;gap:14px">
+            <h3 id="core-course-title">Core Training</h3>
+          </div>
+          <div class="section-header-actions">
+            <div style="display:flex;gap:4px" id="core-course-tabs">
+              <button class="action-btn" data-course="CPR" onclick="switchCoreCourse('CPR')">CPR</button>
+              <button class="action-btn" data-course="AVI" onclick="switchCoreCourse('AVI')">AVI</button>
+              <button class="action-btn" data-course="WFA" onclick="switchCoreCourse('WFA')">WFA</button>
+            </div>
+            <button class="action-btn primary admin-only" onclick="openEditCourse()">✎ Edit Course</button>
+          </div>
+        </div>
+        <div id="core-course-info" style="padding:16px 20px;display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:16px;font-size:13px"></div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-header">
+          <h3>Member Roster</h3>
+          <span class="count" id="core-roster-count"></span>
+        </div>
+        <div class="filter-row">
+          <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;color:var(--muted)">
+            <input type="checkbox" id="core-show-incomplete" onchange="renderTraining()" style="accent-color:var(--brand);width:15px;height:15px;cursor:pointer">
+            Show Incomplete Only
+          </label>
+          <input type="text" id="core-search" placeholder="Search by name or call #…" oninput="renderTraining()" style="min-width:220px">
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Call #</th><th>Member Name</th><th>Status</th><th>Date Completed</th><th>Grade</th><th>Time</th>
+            </tr></thead>
+            <tbody id="core-roster-tbody">
+              <tr><td colspan="6"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
   </div><!-- /content -->
 </div><!-- /main -->
 
@@ -1064,6 +1111,87 @@
   </div>
 </div>
 
+<!-- EDIT COURSE MODAL -->
+<div class="modal-overlay" id="course-modal">
+  <div class="modal" style="width:520px">
+    <div class="modal-header">
+      <h3>✎ <span id="cm-title">Edit Course</span></h3>
+      <button class="modal-close" onclick="document.getElementById('course-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="detail-grid">
+        <div class="detail-field full">
+          <div class="detail-label">Training Description</div>
+          <textarea class="modal-input" id="cm-desc" rows="3"></textarea>
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Cert Duration (Months) <span style="text-transform:none;font-weight:400">— how long a completed cert is valid</span></div>
+          <input class="modal-input" id="cm-duration" type="number" min="0">
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Course Locked</div>
+          <select class="modal-input" id="cm-locked">
+            <option value="false">No</option>
+            <option value="true">Yes</option>
+          </select>
+        </div>
+        <hr class="detail-divider">
+        <div class="detail-field full" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)">
+          Training Window — time allowed for members to complete this training
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Window Start</div>
+          <input class="modal-input" id="cm-start" type="date">
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Window End</div>
+          <input class="modal-input" id="cm-end" type="date">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="save-btn" onclick="saveCourseInfo()">💾 Save Changes</button>
+      <button class="cancel-btn" onclick="document.getElementById('course-modal').classList.remove('open')">Cancel</button>
+      <span class="save-msg" id="cm-save-msg">✓ Saved!</span>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT MEMBER COMPLETION MODAL -->
+<div class="modal-overlay" id="core-member-modal">
+  <div class="modal" style="width:460px">
+    <div class="modal-header">
+      <h3>✏️ <span id="core-member-title">Edit Completion</span></h3>
+      <button class="modal-close" onclick="document.getElementById('core-member-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="detail-grid">
+        <div class="detail-field full">
+          <div class="detail-label">Date Completed</div>
+          <input class="modal-input" id="mm-date" type="date">
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Grade</div>
+          <select class="modal-input" id="mm-grade">
+            <option value="">—</option>
+            <option value="Pass">Pass</option>
+            <option value="Fail">Fail</option>
+          </select>
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Time</div>
+          <input class="modal-input" id="mm-time" placeholder="e.g. 2 hrs">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="save-btn" onclick="saveCoreMemberRecord()">💾 Save Changes</button>
+      <button class="cancel-btn" onclick="document.getElementById('core-member-modal').classList.remove('open')">Cancel</button>
+      <span class="save-msg" id="mm-save-msg">✓ Saved!</span>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── CONFIG ──────────────────────────────────────────────────────
 const SUPABASE_URL  = 'https://qvakbmdwmnlfdippkdyz.supabase.co';
@@ -1169,6 +1297,9 @@ async function sb(path, params = {}) {
 let allCases = [], allEmployees = [];
 let caseEmpCounts = {};   // { case_id: count }
 let monthlyChart, cbdChart;
+let allCoreRecords = [];
+let currentCoreCourse = 'CPR';
+let currentCoreRecordId = null;
 
 // ── TTM DATE (default: today) ─────────────────────────────────────
 (function initTTM() {
@@ -1189,6 +1320,7 @@ let memberFilterTimer   = null;
 const pages = { dashboard: document.getElementById('page-dashboard'),
                 cases:     document.getElementById('page-cases'),
                 roster:    document.getElementById('page-roster'),
+                training:  document.getElementById('page-training'),
                 reporting: document.getElementById('page-reporting') };
 const navLinks = document.querySelectorAll('#sidebar nav a');
 
@@ -1196,11 +1328,12 @@ function navigate(page) {
   navLinks.forEach(a => a.classList.toggle('active', a.dataset.page === page));
   Object.entries(pages).forEach(([k, el]) => el.classList.toggle('active', k === page));
   document.getElementById('page-title').textContent =
-    { dashboard: 'Dashboard', cases: 'Case Log', roster: 'Members', reporting: 'Reporting' }[page] || page;
+    { dashboard: 'Dashboard', cases: 'Case Log', roster: 'Members', training: 'Core Training', reporting: 'Reporting' }[page] || page;
   document.getElementById('ttm-wrap').style.display = page === 'dashboard' ? '' : 'none';
   if (page === 'cases')     renderCases();
   if (page === 'roster')    renderRoster();
   if (page === 'dashboard') renderDashboard();
+  if (page === 'training')  renderTraining();
   if (page === 'reporting') loadReporting();
 }
 navLinks.forEach(a => a.addEventListener('click', () => navigate(a.dataset.page)));
@@ -1245,13 +1378,15 @@ async function loadAll() {
   if (mf) mf.value = '';
   document.getElementById('error-box').style.display = 'none';
   try {
-    const [casesRes, empRes, countsRes] = await Promise.all([
+    const [casesRes, empRes, countsRes, coreRes] = await Promise.all([
       sb('case1', { select: '*', order: 'date.desc', limit: 1000 }),
       sb('employees', { select: '*', order: 'last_name.asc', limit: 500 }),
       sb('case_employee_counts', { select: 'case_id,count' }),
+      sb('core', { select: '*', order: 'course_name.asc', limit: 2000 }),
     ]);
     allCases     = casesRes.data;
     allEmployees = empRes.data;
+    allCoreRecords = coreRes.data;
     // Build count map from aggregated view (one row per case)
     caseEmpCounts = {};
     countsRes.data.forEach(r => { caseEmpCounts[r.case_id] = r.count; });
@@ -1260,6 +1395,7 @@ async function loadAll() {
     renderDashboard();
     renderCases();
     renderRoster();
+    renderTraining();
     document.getElementById('last-refresh').textContent = new Date().toLocaleTimeString();
   } catch(e) {
     const box = document.getElementById('error-box');
@@ -2947,6 +3083,176 @@ async function toggleHistory() {
   }
 }
 
+// ── CORE TRAINING ─────────────────────────────────────────────────
+function switchCoreCourse(course) {
+  currentCoreCourse = course;
+  renderTraining();
+}
+
+function coreCompletionStatus(rec) {
+  if (!rec || !rec.completion_date) return 'Not Started';
+  if (rec.cert_duration_months) {
+    const exp = new Date(rec.completion_date + 'T00:00:00');
+    exp.setMonth(exp.getMonth() + parseInt(rec.cert_duration_months, 10));
+    if (exp < new Date()) return 'Expired';
+  }
+  return 'Completed';
+}
+function coreStatusBadge(status) {
+  const m = { 'Not Started':'badge-gray', 'Completed':'badge-green', 'Expired':'badge-red' };
+  return `<span class="pill ${m[status]||'badge-gray'}">${status}</span>`;
+}
+
+function renderTraining() {
+  // Tab active state
+  document.querySelectorAll('#core-course-tabs button').forEach(b => {
+    b.classList.toggle('primary', b.dataset.course === currentCoreCourse);
+  });
+
+  const courseRecs = allCoreRecords.filter(r => r.course_name === currentCoreCourse);
+
+  // Course info panel (fields are shared across all rows for this course)
+  const info = courseRecs[0] || {};
+  document.getElementById('core-course-title').textContent = `Core Training — ${currentCoreCourse}`;
+  document.getElementById('core-course-info').innerHTML = `
+    <div>
+      <div class="detail-label" style="margin-bottom:4px">Description</div>
+      <div>${info.course_description || '—'}</div>
+    </div>
+    <div>
+      <div class="detail-label" style="margin-bottom:4px">Cert Duration</div>
+      <div>${info.cert_duration_months ? info.cert_duration_months + ' months' : '—'}</div>
+    </div>
+    <div>
+      <div class="detail-label" style="margin-bottom:4px">Training Window</div>
+      <div>${info.window_start ? fmt(info.window_start) : '—'} – ${info.window_end ? fmt(info.window_end) : '—'}</div>
+    </div>
+    <div>
+      <div class="detail-label" style="margin-bottom:4px">Course Locked</div>
+      <div>${info.locked ? '🔒 Yes' : 'No'}</div>
+    </div>`;
+
+  // Roster filters
+  const showIncomplete = document.getElementById('core-show-incomplete').checked;
+  const search = document.getElementById('core-search').value.toLowerCase();
+  const empById = {};
+  allEmployees.forEach(e => { empById[e.id] = e; });
+
+  let rows = courseRecs.map(r => ({ rec: r, emp: empById[r.employee_id] })).filter(x => x.emp);
+  if (showIncomplete) rows = rows.filter(x => coreCompletionStatus(x.rec) !== 'Completed');
+  if (search) rows = rows.filter(x =>
+    (x.emp.call_no||'').toLowerCase().includes(search) ||
+    `${x.emp.first_name} ${x.emp.last_name}`.toLowerCase().includes(search));
+  rows.sort((a,b) => (a.emp.last_name||'').localeCompare(b.emp.last_name||''));
+
+  document.getElementById('core-roster-count').textContent = `${rows.length} member${rows.length!==1?'s':''}`;
+  const canEdit = currentRole === 'Admin';
+  document.getElementById('core-roster-tbody').innerHTML = rows.length
+    ? rows.map(({rec, emp}) => {
+        const status = coreCompletionStatus(rec);
+        const rowClick = canEdit ? `onclick="openCoreMemberEdit('${rec.id}')" style="cursor:pointer"` : '';
+        return `<tr ${rowClick}>
+          <td><strong>${emp.call_no||'—'}</strong></td>
+          <td>${emp.last_name}, ${emp.first_name}</td>
+          <td>${coreStatusBadge(status)}</td>
+          <td class="muted">${rec.completion_date ? fmt(rec.completion_date) : '—'}</td>
+          <td class="muted">${rec.grade || '—'}</td>
+          <td class="muted">${rec.time || '—'}</td>
+        </tr>`;
+      }).join('')
+    : '<tr><td colspan="6"><div class="empty">No members match.</div></td></tr>';
+}
+
+// ── EDIT COURSE (bulk, applies to all rows for this course_name) ───
+function openEditCourse() {
+  const courseRecs = allCoreRecords.filter(r => r.course_name === currentCoreCourse);
+  const info = courseRecs[0] || {};
+  document.getElementById('cm-title').textContent = `Edit Course — ${currentCoreCourse}`;
+  document.getElementById('cm-desc').value = info.course_description || '';
+  document.getElementById('cm-duration').value = info.cert_duration_months || '';
+  document.getElementById('cm-locked').value = info.locked ? 'true' : 'false';
+  document.getElementById('cm-start').value = info.window_start || '';
+  document.getElementById('cm-end').value = info.window_end || '';
+  document.getElementById('course-modal').classList.add('open');
+}
+document.getElementById('course-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
+});
+
+async function saveCourseInfo() {
+  const payload = {
+    course_description: document.getElementById('cm-desc').value.trim() || null,
+    cert_duration_months: parseInt(document.getElementById('cm-duration').value, 10) || null,
+    locked: document.getElementById('cm-locked').value === 'true',
+    window_start: document.getElementById('cm-start').value || null,
+    window_end: document.getElementById('cm-end').value || null,
+    updated_at: new Date().toISOString(),
+  };
+  const btn = document.querySelector('#course-modal .save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/core?course_name=eq.${currentCoreCourse}`,
+      { method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload) }
+    );
+    if (!res.ok) throw new Error(await res.text());
+    allCoreRecords.forEach(r => { if (r.course_name === currentCoreCourse) Object.assign(r, payload); });
+    renderTraining();
+    const msg = document.getElementById('cm-save-msg');
+    msg.style.display = 'inline'; setTimeout(() => { msg.style.display = 'none'; }, 2000);
+  } catch(err) {
+    alert('Save failed: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 Save Changes';
+  }
+}
+
+// ── EDIT ONE MEMBER'S COMPLETION ────────────────────────────────────
+function openCoreMemberEdit(recordId) {
+  const rec = allCoreRecords.find(r => r.id === recordId);
+  if (!rec) return;
+  const emp = allEmployees.find(e => e.id === rec.employee_id);
+  currentCoreRecordId = recordId;
+  document.getElementById('core-member-title').textContent =
+    `${currentCoreCourse} — ${emp ? emp.last_name + ', ' + emp.first_name : ''}`;
+  document.getElementById('mm-date').value  = rec.completion_date || '';
+  document.getElementById('mm-grade').value = rec.grade || '';
+  document.getElementById('mm-time').value  = rec.time || '';
+  document.getElementById('core-member-modal').classList.add('open');
+}
+document.getElementById('core-member-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
+});
+
+async function saveCoreMemberRecord() {
+  if (!currentCoreRecordId) return;
+  const payload = {
+    completion_date: document.getElementById('mm-date').value || null,
+    grade: document.getElementById('mm-grade').value || null,
+    time: document.getElementById('mm-time').value.trim() || null,
+    updated_at: new Date().toISOString(),
+  };
+  const btn = document.querySelector('#core-member-modal .save-btn');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/core?id=eq.${currentCoreRecordId}`,
+      { method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload) }
+    );
+    if (!res.ok) throw new Error(await res.text());
+    const idx = allCoreRecords.findIndex(r => r.id === currentCoreRecordId);
+    if (idx > -1) Object.assign(allCoreRecords[idx], payload);
+    renderTraining();
+    const msg = document.getElementById('mm-save-msg');
+    msg.style.display = 'inline'; setTimeout(() => { msg.style.display = 'none'; }, 2000);
+  } catch(err) {
+    alert('Save failed: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '💾 Save Changes';
+  }
+}
 // ── INIT ──────────────────────────────────────────────────────────
 loadAll();
 </script>
