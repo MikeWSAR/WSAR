@@ -1156,6 +1156,10 @@
           <div class="detail-label">Window End</div>
           <input class="modal-input" id="cm-end" type="date">
         </div>
+        <div class="detail-field full">
+          <div class="detail-label">Cert Expiration <span style="text-transform:none;font-weight:400">— Window Start + Cert Duration</span></div>
+          <div><span class="pill badge-blue" id="cm-cert-exp">—</span></div>
+        </div>
       </div>
     </div>
     <div class="modal-footer">
@@ -1208,6 +1212,10 @@
         <div class="detail-field">
           <div class="detail-label">Window End</div>
           <input class="modal-input" id="ac-end" type="date">
+        </div>
+        <div class="detail-field full">
+          <div class="detail-label">Cert Expiration <span style="text-transform:none;font-weight:400">— Window Start + Cert Duration</span></div>
+          <div><span class="pill badge-blue" id="ac-cert-exp">—</span></div>
         </div>
       </div>
     </div>
@@ -3446,6 +3454,20 @@ function exportTraining(type) {
   }
 }
 
+// ── CERT EXPIRATION (Window Start + Cert Duration) ──────────────────
+function computeCertExpiration(startVal, durationVal) {
+  if (!startVal || !durationVal) return null;
+  const d = new Date(startVal + 'T00:00:00');
+  d.setMonth(d.getMonth() + parseInt(durationVal, 10));
+  return d.toISOString().slice(0, 10);
+}
+function updateCertExpirationDisplay(prefix) {
+  const start = document.getElementById(`${prefix}-start`).value;
+  const duration = document.getElementById(`${prefix}-duration`).value;
+  const exp = computeCertExpiration(start, duration);
+  document.getElementById(`${prefix}-cert-exp`).textContent = exp ? fmt(exp) : '—';
+}
+
 // ── EDIT COURSE (bulk, applies to all rows for this course_name) ───
 function openEditCourse() {
   const courseRecs = allCoreRecords.filter(r => r.course_name === currentCoreCourse);
@@ -3457,11 +3479,14 @@ function openEditCourse() {
   document.getElementById('cm-locked').checked = !!info.locked;
   document.getElementById('cm-start').value = info.window_start || '';
   document.getElementById('cm-end').value = info.window_end || '';
+  updateCertExpirationDisplay('cm');
   document.getElementById('course-modal').classList.add('open');
 }
 document.getElementById('course-modal').addEventListener('click', function(e) {
   if (e.target === this) this.classList.remove('open');
 });
+document.getElementById('cm-start').addEventListener('input', () => updateCertExpirationDisplay('cm'));
+document.getElementById('cm-duration').addEventListener('input', () => updateCertExpirationDisplay('cm'));
 
 async function saveCourseInfo() {
   const payload = {
@@ -3502,11 +3527,14 @@ function openAddCourse() {
   document.getElementById('ac-locked').checked = false;
   document.getElementById('ac-start').value = '';
   document.getElementById('ac-end').value = '';
+  updateCertExpirationDisplay('ac');
   document.getElementById('add-course-modal').classList.add('open');
 }
 document.getElementById('add-course-modal').addEventListener('click', function(e) {
   if (e.target === this) this.classList.remove('open');
 });
+document.getElementById('ac-start').addEventListener('input', () => updateCertExpirationDisplay('ac'));
+document.getElementById('ac-duration').addEventListener('input', () => updateCertExpirationDisplay('ac'));
 
 async function saveNewCourse() {
   const name = document.getElementById('ac-name').value.trim();
