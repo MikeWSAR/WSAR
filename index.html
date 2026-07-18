@@ -660,6 +660,9 @@
     <p>Wasatch County SAR</p>
   </div>
   <nav>
+    <a data-page="trainingSummary">
+      <span class="icon">📑</span> Core Training Summary
+    </a>
     <a class="active" data-page="dashboard">
       <span class="icon">📊</span> Dashboard
     </a>
@@ -702,6 +705,30 @@
   </div>
 
   <div id="content">
+
+    <!-- CORE TRAINING SUMMARY PAGE -->
+    <div id="page-trainingSummary" class="page">
+      <div class="section-card">
+        <div class="section-header">
+          <h3>Core Training</h3>
+          <span class="count" id="training-summary-count"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Core Training Name</th>
+              <th>Start Date</th>
+              <th>Expire Date</th>
+              <th># not Completed</th>
+              <th>Status bar</th>
+            </tr></thead>
+            <tbody id="training-summary-tbody">
+              <tr><td colspan="5"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
 
     <!-- DASHBOARD PAGE -->
     <div id="page-dashboard" class="page active">
@@ -1393,20 +1420,22 @@ const pages = { dashboard: document.getElementById('page-dashboard'),
                 cases:     document.getElementById('page-cases'),
                 roster:    document.getElementById('page-roster'),
                 training:  document.getElementById('page-training'),
-                reporting: document.getElementById('page-reporting') };
+                reporting: document.getElementById('page-reporting'),
+                trainingSummary: document.getElementById('page-trainingSummary') };
 const navLinks = document.querySelectorAll('#sidebar nav a');
 
 function navigate(page) {
   navLinks.forEach(a => a.classList.toggle('active', a.dataset.page === page));
   Object.entries(pages).forEach(([k, el]) => el.classList.toggle('active', k === page));
   document.getElementById('page-title').textContent =
-    { dashboard: 'Dashboard', cases: 'Case Log', roster: 'Members', training: 'Core Training', reporting: 'Reporting' }[page] || page;
+    { dashboard: 'Dashboard', cases: 'Case Log', roster: 'Members', training: 'Core Training', reporting: 'Reporting', trainingSummary: 'Core Training Summary' }[page] || page;
   document.getElementById('ttm-wrap').style.display = page === 'dashboard' ? '' : 'none';
   if (page === 'cases')     renderCases();
   if (page === 'roster')    renderRoster();
   if (page === 'dashboard') renderDashboard();
   if (page === 'training')  renderTraining();
   if (page === 'reporting') loadReporting();
+  if (page === 'trainingSummary') renderTrainingSummary();
 }
 navLinks.forEach(a => a.addEventListener('click', () => navigate(a.dataset.page)));
 
@@ -3206,6 +3235,44 @@ function getCoreCourseList() {
     if (!!a.locked !== !!b.locked) return a.locked ? 1 : -1;
     return a.course_name.localeCompare(b.course_name);
   });
+}
+
+// ── CORE TRAINING SUMMARY ────────────────────────────────────────────
+function goToCourseDetail(courseName) {
+  currentCoreCourse = courseName;
+  navigate('training');
+}
+
+function renderTrainingSummary() {
+  const courseList = getCoreCourseList();
+  const tbody = document.getElementById('training-summary-tbody');
+  document.getElementById('training-summary-count').textContent =
+    `${courseList.length} course${courseList.length !== 1 ? 's' : ''}`;
+
+  if (!courseList.length) {
+    tbody.innerHTML = '<tr><td colspan="5"><div class="empty">No training courses found.</div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = courseList.map(info => {
+    const courseRecs = allCoreRecords.filter(r => r.course_name === info.course_name);
+    const completedCount = courseRecs.filter(r => coreCompletionStatus(r) === 'Completed').length;
+    const notCompleted = courseRecs.length - completedCount;
+    const pct = courseRecs.length ? (completedCount / courseRecs.length) * 100 : 0;
+    const expDate = computeCertExpiration(info.window_start, info.cert_duration_months);
+    const nameSafe = info.course_name.replace(/'/g, "\\'");
+    return `<tr>
+      <td>
+        <a href="#" onclick="goToCourseDetail('${nameSafe}'); return false;" style="color:var(--brand);font-weight:600;text-decoration:none">
+          ${info.course_name}${info.locked ? ' 🔒' : ''}
+        </a>
+      </td>
+      <td class="muted">${info.window_start ? fmt(info.window_start) : '—'}</td>
+      <td class="muted">${expDate ? fmt(expDate) : '—'}</td>
+      <td class="muted">${notCompleted}</td>
+      <td>${scoreBar(pct)}</td>
+    </tr>`;
+  }).join('');
 }
 
 function renderTraining() {
