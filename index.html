@@ -1150,7 +1150,7 @@
         </div>
         <hr class="detail-divider">
         <div class="detail-field full" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)">
-          Training Window — time allowed for members to complete this training
+          Training Window — Time allowed to complete training
         </div>
         <div class="detail-field">
           <div class="detail-label">Window Start</div>
@@ -1207,7 +1207,7 @@
         </div>
         <hr class="detail-divider">
         <div class="detail-field full" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)">
-          Training Window — time allowed for members to complete this training
+          Training Window — Time allowed to complete training
         </div>
         <div class="detail-field">
           <div class="detail-label">Window Start</div>
@@ -3465,7 +3465,24 @@ function updateCertExpirationDisplay(prefix) {
   const start = document.getElementById(`${prefix}-start`).value;
   const duration = document.getElementById(`${prefix}-duration`).value;
   const exp = computeCertExpiration(start, duration);
-  document.getElementById(`${prefix}-cert-exp`).textContent = exp ? fmt(exp) : '—';
+  const el = document.getElementById(`${prefix}-cert-exp`);
+  if (!exp) {
+    el.textContent = '—';
+    el.style.background = 'var(--bg, #f8fafc)';
+    el.style.color = 'var(--muted)';
+    return;
+  }
+  el.textContent = fmt(exp);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const expDate = new Date(exp + 'T00:00:00');
+  if (expDate < today) {
+    el.style.background = '#fee2e2';
+    el.style.color = '#b91c1c';
+  } else {
+    el.style.background = '#dcfce7';
+    el.style.color = '#15803d';
+  }
 }
 
 // ── EDIT COURSE (bulk, applies to all rows for this course_name) ───
