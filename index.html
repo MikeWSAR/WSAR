@@ -978,10 +978,11 @@
               <th class="sortable" data-col="last_name">Member Name <span class="sort-arrow">↕</span></th>
               <th class="sortable" data-col="status">Status <span class="sort-arrow">↕</span></th>
               <th class="sortable" data-col="completion_date">Date Completed <span class="sort-arrow">↕</span></th>
+              <th>Cert Expire</th>
               <th>Grade</th><th>Time</th>
             </tr></thead>
             <tbody id="core-roster-tbody">
-              <tr><td colspan="6"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
+              <tr><td colspan="7"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
             </tbody>
           </table>
         </div>
@@ -3186,6 +3187,12 @@ function coreCompletionStatus(rec) {
   }
   return 'Completed';
 }
+function coreCertExpireDate(rec) {
+  if (!rec || !rec.completion_date || !rec.cert_duration_months) return null;
+  const exp = new Date(rec.completion_date + 'T00:00:00');
+  exp.setMonth(exp.getMonth() + parseInt(rec.cert_duration_months, 10));
+  return exp.toISOString().slice(0, 10);
+}
 function coreStatusBadge(status) {
   const m = { 'Not Started':'badge-gray', 'Completed':'badge-green', 'Expired':'badge-red' };
   return `<span class="pill ${m[status]||'badge-gray'}">${status}</span>`;
@@ -3307,6 +3314,10 @@ function renderTraining() {
         const dateCell = canEditRoster
           ? `<input type="date" class="modal-input" style="width:auto;padding:4px 8px;font-size:12.5px" value="${rec.completion_date||''}" onclick="event.stopPropagation()" onchange="updateCoreDate('${rec.id}', this.value)">`
           : (rec.completion_date ? fmt(rec.completion_date) : '—');
+        const certExpDate = coreCertExpireDate(rec);
+        const certExpCell = certExpDate
+          ? `<span style="color:${new Date(certExpDate+'T00:00:00') < new Date(new Date().setHours(0,0,0,0)) ? '#b91c1c' : '#15803d'};font-weight:600">${fmt(certExpDate)}</span>`
+          : '—';
         const rowStyleParts = [];
         if (status === 'Not Started') rowStyleParts.push('background:#fef9c3');
         if (canEditRoster) rowStyleParts.push('cursor:pointer');
@@ -3316,11 +3327,12 @@ function renderTraining() {
           <td>${emp.last_name}, ${emp.first_name}</td>
           <td>${statusCell}</td>
           <td class="muted">${dateCell}</td>
+          <td class="muted">${certExpCell}</td>
           <td class="muted">${rec.grade || '—'}</td>
           <td class="muted">${rec.time || '—'}</td>
         </tr>`;
       }).join('')
-    : '<tr><td colspan="6"><div class="empty">No members match.</div></td></tr>';
+    : '<tr><td colspan="7"><div class="empty">No members match.</div></td></tr>';
 }
 
 async function updateCoreStatus(recordId, newStatus) {
@@ -3416,10 +3428,12 @@ function getCoreExportRows() {
 
 function exportTraining(type) {
   const rows = getCoreExportRows();
-  const headers = ['Call #','Member Name','Status','Date Completed','Grade','Time'];
+  const headers = ['Call #','Member Name','Status','Date Completed','Cert Expire','Grade','Time'];
   const getData = ({rec, emp}) => [
     emp.call_no||'', `${emp.last_name}, ${emp.first_name}`, coreCompletionStatus(rec),
-    rec.completion_date ? fmt(rec.completion_date) : '', rec.grade||'', rec.time||''
+    rec.completion_date ? fmt(rec.completion_date) : '',
+    coreCertExpireDate(rec) ? fmt(coreCertExpireDate(rec)) : '',
+    rec.grade||'', rec.time||''
   ];
 
   if (type === 'csv') {
