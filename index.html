@@ -660,9 +660,6 @@
     <p>Wasatch County SAR</p>
   </div>
   <nav>
-    <a data-page="trainingSummary">
-      <span class="icon">📑</span> Core Training Summary
-    </a>
     <a class="active" data-page="dashboard">
       <span class="icon">📊</span> Dashboard
     </a>
@@ -675,7 +672,7 @@
     <a data-page="reporting">
       <span class="icon">📈</span> Reporting
     </a>
-    <a data-page="training">
+    <a data-page="trainingSummary">
       <span class="icon">🎓</span> Core Training
     </a>
   </nav>
@@ -1255,6 +1252,28 @@
   </div>
 </div>
 
+<!-- NOT COMPLETED MODAL -->
+<div class="modal-overlay" id="not-completed-modal">
+  <div class="modal" style="width:480px">
+    <div class="modal-header">
+      <h3 id="nc-title">Not Completed</h3>
+      <button class="modal-close" onclick="document.getElementById('not-completed-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="table-wrap" style="max-height:55vh;overflow-y:auto">
+        <table>
+          <thead><tr>
+            <th>Call #</th>
+            <th>Member Name</th>
+            <th>Status</th>
+          </tr></thead>
+          <tbody id="nc-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- EDIT MEMBER COMPLETION MODAL -->
 <div class="modal-overlay" id="core-member-modal">
   <div class="modal" style="width:460px">
@@ -1425,7 +1444,8 @@ const pages = { dashboard: document.getElementById('page-dashboard'),
 const navLinks = document.querySelectorAll('#sidebar nav a');
 
 function navigate(page) {
-  navLinks.forEach(a => a.classList.toggle('active', a.dataset.page === page));
+  navLinks.forEach(a => a.classList.toggle('active',
+    a.dataset.page === page || (a.dataset.page === 'trainingSummary' && page === 'training')));
   Object.entries(pages).forEach(([k, el]) => el.classList.toggle('active', k === page));
   document.getElementById('page-title').textContent =
     { dashboard: 'Dashboard', cases: 'Case Log', roster: 'Members', training: 'Core Training', reporting: 'Reporting', trainingSummary: 'Core Training Summary' }[page] || page;
@@ -3243,6 +3263,29 @@ function goToCourseDetail(courseName) {
   navigate('training');
 }
 
+function openNotCompletedModal(courseName) {
+  const empById = {};
+  allEmployees.forEach(e => { empById[e.id] = e; });
+  const rows = allCoreRecords
+    .filter(r => r.course_name === courseName && coreCompletionStatus(r) !== 'Completed')
+    .map(r => ({ rec: r, emp: empById[r.employee_id] }))
+    .filter(x => x.emp)
+    .sort((a, b) => (a.emp.last_name || '').localeCompare(b.emp.last_name || ''));
+
+  document.getElementById('nc-title').textContent = `Not Completed — ${courseName}`;
+  document.getElementById('nc-tbody').innerHTML = rows.length
+    ? rows.map(({rec, emp}) => `<tr>
+        <td><strong>${emp.call_no || '—'}</strong></td>
+        <td>${emp.last_name}, ${emp.first_name}</td>
+        <td>${coreStatusBadge(coreCompletionStatus(rec))}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="3"><div class="empty">Everyone has completed this course.</div></td></tr>';
+  document.getElementById('not-completed-modal').classList.add('open');
+}
+document.getElementById('not-completed-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
+});
+
 function renderTrainingSummary() {
   const courseList = getCoreCourseList();
   const tbody = document.getElementById('training-summary-tbody');
@@ -3269,7 +3312,9 @@ function renderTrainingSummary() {
       </td>
       <td class="muted">${info.window_start ? fmt(info.window_start) : '—'}</td>
       <td class="muted">${expDate ? fmt(expDate) : '—'}</td>
-      <td class="muted">${notCompleted}</td>
+      <td class="muted">${notCompleted > 0
+        ? `<a href="#" onclick="openNotCompletedModal('${nameSafe}'); return false;" style="color:var(--brand);font-weight:600;text-decoration:none">${notCompleted}</a>`
+        : '0'}</td>
       <td>${scoreBar(pct)}</td>
     </tr>`;
   }).join('');
