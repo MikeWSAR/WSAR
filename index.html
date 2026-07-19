@@ -708,7 +708,10 @@
       <div class="section-card">
         <div class="section-header">
           <h3>Core Training</h3>
-          <span class="count" id="training-summary-count"></span>
+          <div style="display:flex;align-items:center;gap:14px">
+            <button class="action-btn" onclick="navigate('coreByMember')">👤 Core Training by Member</button>
+            <span class="count" id="training-summary-count"></span>
+          </div>
         </div>
         <div class="table-wrap">
           <table>
@@ -721,6 +724,37 @@
             </tr></thead>
             <tbody id="training-summary-tbody">
               <tr><td colspan="5"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- CORE TRAINING BY MEMBER PAGE -->
+    <div id="page-coreByMember" class="page">
+      <div class="section-card">
+        <div class="section-header">
+          <div style="display:flex;align-items:center;gap:12px">
+            <button class="action-btn" onclick="navigate('trainingSummary')">← Back</button>
+            <h3>Core Training by Member</h3>
+          </div>
+          <div class="section-header-actions">
+            <button class="export-btn" onclick="exportCoreByMember('csv')">⬇ CSV</button>
+            <button class="export-btn" onclick="exportCoreByMember('pdf')">⬇ PDF</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>Call #</th>
+              <th>Member Name</th>
+              <th>Eligible Courses</th>
+              <th># Complete</th>
+              <th>% Complete</th>
+              <th>Course Not Complete</th>
+            </tr></thead>
+            <tbody id="core-by-member-tbody">
+              <tr><td colspan="6"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
             </tbody>
           </table>
         </div>
@@ -1440,15 +1474,16 @@ const pages = { dashboard: document.getElementById('page-dashboard'),
                 roster:    document.getElementById('page-roster'),
                 training:  document.getElementById('page-training'),
                 reporting: document.getElementById('page-reporting'),
-                trainingSummary: document.getElementById('page-trainingSummary') };
+                trainingSummary: document.getElementById('page-trainingSummary'),
+                coreByMember: document.getElementById('page-coreByMember') };
 const navLinks = document.querySelectorAll('#sidebar nav a');
 
 function navigate(page) {
   navLinks.forEach(a => a.classList.toggle('active',
-    a.dataset.page === page || (a.dataset.page === 'trainingSummary' && page === 'training')));
+    a.dataset.page === page || (a.dataset.page === 'trainingSummary' && (page === 'training' || page === 'coreByMember'))));
   Object.entries(pages).forEach(([k, el]) => el.classList.toggle('active', k === page));
   document.getElementById('page-title').textContent =
-    { dashboard: 'Dashboard', cases: 'Case Log', roster: 'Members', training: 'Core Training', reporting: 'Reporting', trainingSummary: 'Core Training Summary' }[page] || page;
+    { dashboard: 'Dashboard', cases: 'Case Log', roster: 'Members', training: 'Core Training', reporting: 'Reporting', trainingSummary: 'Core Training Summary', coreByMember: 'Core Training by Member' }[page] || page;
   document.getElementById('ttm-wrap').style.display = page === 'dashboard' ? '' : 'none';
   if (page === 'cases')     renderCases();
   if (page === 'roster')    renderRoster();
@@ -1456,6 +1491,7 @@ function navigate(page) {
   if (page === 'training')  renderTraining();
   if (page === 'reporting') loadReporting();
   if (page === 'trainingSummary') renderTrainingSummary();
+  if (page === 'coreByMember') renderCoreByMember();
 }
 navLinks.forEach(a => a.addEventListener('click', () => navigate(a.dataset.page)));
 
@@ -3323,6 +3359,95 @@ function renderTrainingSummary() {
       <td>${scoreBar(pct)}</td>
     </tr>`;
   }).join('');
+}
+
+// ── CORE TRAINING BY MEMBER ──────────────────────────────────────────
+// Eligible course = a course record whose status is "Completed" (cert not yet
+// expired) or "Not Started" — i.e. excludes "Expired" and "Not Eligible".
+let coreByMemberRows = [];
+
+function getCoreByMemberRows() {
+  const empById = {};
+  allEmployees.forEach(e => { empById[e.id] = e; });
+
+  const byEmp = {};
+  allCoreRecords.forEach(r => {
+    (byEmp[r.employee_id] = byEmp[r.employee_id] || []).push(r);
+  });
+
+  return Object.entries(byEmp)
+    .map(([empId, recs]) => {
+      const emp = empById[empId];
+      if (!emp) return null;
+      const eligible = recs.filter(r => {
+        const s = coreCompletionStatus(r);
+        return s === 'Completed' || s === 'Not Started';
+      });
+      const completeCount = eligible.filter(r => coreCompletionStatus(r) === 'Completed').length;
+      const pct = eligible.length ? (completeCount / eligible.length) * 100 : 0;
+      const incomplete = eligible.filter(r => coreCompletionStatus(r) === 'Not Started');
+      const notComplete = incomplete.length === 0 ? '—'
+        : incomplete.length === 1 ? incomplete[0].course_name
+        : 'Multiple';
+      return { emp, eligibleCount: eligible.length, completeCount, pct, notComplete };
+    })
+    .filter(Boolean)
+    .sort((a, b) => (a.emp.last_name || '').localeCompare(b.emp.last_name || ''));
+}
+
+function renderCoreByMember() {
+  coreByMemberRows = getCoreByMemberRows();
+  const tbody = document.getElementById('core-by-member-tbody');
+  tbody.innerHTML = coreByMemberRows.length
+    ? coreByMemberRows.map(r => `<tr>
+        <td><strong>${r.emp.call_no || '—'}</strong></td>
+        <td>${r.emp.last_name}, ${r.emp.first_name}</td>
+        <td class="muted">${r.eligibleCount}</td>
+        <td class="muted">${r.completeCount}</td>
+        <td>${scoreBar(r.pct)}</td>
+        <td class="muted">${r.notComplete}</td>
+      </tr>`).join('')
+    : '<tr><td colspan="6"><div class="empty">No members found.</div></td></tr>';
+}
+
+function exportCoreByMember(type) {
+  const rows = coreByMemberRows;
+  const headers = ['Call #','Member Name','Eligible Courses','# Complete','% Complete','Course Not Complete'];
+  const getData = (r) => [
+    r.emp.call_no || '', `${r.emp.last_name}, ${r.emp.first_name}`,
+    r.eligibleCount, r.completeCount, r.pct.toFixed(0) + '%', r.notComplete
+  ];
+
+  if (type === 'csv') {
+    const csv = [headers, ...rows.map(getData)]
+      .map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(','))
+      .join('\n');
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = `WSAR_CoreTrainingByMember_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+  } else {
+    const tableRows = rows.map(r => `<tr>${getData(r).map(v => `<td>${v}</td>`).join('')}</tr>`).join('');
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html><head><title>WSAR Core Training by Member</title>
+      <style>
+        body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; }
+        h2 { margin-bottom: 4px; }
+        p { color: #666; margin-bottom: 12px; font-size: 11px; }
+        table { width: 100%; border-collapse: collapse; }
+        th { background: #1e40af; color: white; padding: 7px 10px; text-align: left; font-size: 11px; }
+        td { padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
+        tr:nth-child(even) td { background: #f8fafc; }
+        @media print { body { padding: 0; } }
+      </style></head><body>
+      <h2>WSAR Core Training by Member</h2>
+      <p>Exported ${new Date().toLocaleDateString()} — ${rows.length} member${rows.length!==1?'s':''}</p>
+      <table><thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${tableRows}</tbody></table>
+      <script>window.onload=()=>{window.print();}<\/script>
+      </body></html>`);
+    win.document.close();
+  }
 }
 
 function renderTraining() {
