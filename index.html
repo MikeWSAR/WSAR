@@ -965,10 +965,12 @@
       <div class="section-card" id="ma-results-card" style="display:none">
         <div class="section-header">
           <h3 id="ma-results-title">Member Activity</h3>
+          <div class="section-header-actions">
+            <button class="export-btn" onclick="exportMemberActivity('csv')">⬇ CSV</button>
+            <button class="export-btn" onclick="exportMemberActivity('pdf')">⬇ PDF</button>
+          </div>
         </div>
-        <div style="padding:40px 20px;text-align:center;color:var(--muted)" id="ma-results-body">
-          Report details coming soon.
-        </div>
+        <div id="ma-results-body" style="padding:20px"></div>
       </div>
     </div>
 
@@ -3620,7 +3622,13 @@ function updateMemberActivityMode() {
   document.getElementById('ma-months').disabled = useRange;
 }
 
-function generateMemberActivityReport() {
+let maReportData = null;
+
+function maDayOfWeek(d) {
+  return d ? new Date(d + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' }) : '—';
+}
+
+async function generateMemberActivityReport() {
   const empId = document.getElementById('ma-member').value;
   const emp = allEmployees.find(e => e.id === empId);
   if (!emp) return;
@@ -3637,11 +3645,147 @@ function generateMemberActivityReport() {
     fromDate.setMonth(fromDate.getMonth() - months);
     from = fromDate.toISOString().slice(0, 10);
   }
+  if (!from || !to) { alert('Please select a date range.'); return; }
 
-  document.getElementById('ma-results-title').textContent =
-    `Member Activity — ${emp.last_name}, ${emp.first_name} (${fmt(from)} – ${fmt(to)})`;
-  document.getElementById('ma-results-body').textContent = 'Report details coming soon.';
-  document.getElementById('ma-results-card').style.display = '';
+  const card = document.getElementById('ma-results-card');
+  const body = document.getElementById('ma-results-body');
+  document.getElementById('ma-results-title').textContent = `Member Activity — ${emp.last_name}, ${emp.first_name}`;
+  card.style.display = '';
+  body.innerHTML = '<div class="loader-wrap"><div class="spinner"></div><br>Loading…</div>';
+
+  try {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/case1_employees?select=case_id&employee_id=eq.${empId}`,
+      { headers: { ...headers, 'Range': '0-9999' } }
+    );
+    const data = await r.json();
+    const empCaseIds = new Set(Array.isArray(data) ? data.map(x => x.case_id) : []);
+
+    const memberRows = allCases.filter(c => empCaseIds.has(c.id) && c.date >= from && c.date <= to);
+    const teamRows = allCases.filter(c => c.date >= from && c.date <= to);
+
+    const isS  = c => c.case_type === 'S';
+    const isT  = c => c.case_type === 'T';
+    const isElig = c => ['S','T','TC'].includes(c.case_type);
+    const isAll  = c => ['S','T','TC','TE'].includes(c.case_type);
+    const count = (rows, pred) => rows.filter(pred).length;
+    const pct = (m, t) => t > 0 ? Math.round(m / t * 100) : 0;
+
+    const stats = [
+      { label: 'Total Call Outs',   m: count(memberRows, isS) },
+      { label: 'Total Training',    m: count(memberRows, isT) },
+      { label: 'Total Cases',       m: count(memberRows, isAll) },
+      { label: 'Total Eligible Case', m: count(memberRows, isElig) },
+    ];
+    const teamStats = [
+      count(teamRows, isS), count(teamRows, isT), count(teamRows, isAll), count(teamRows, isElig)
+    ];
+    stats.forEach((s, i) => { s.pct = pct(s.m, teamStats[i]); });
+
+    const sortedRows = [...teamRows]
+      .sort((a, b) => (b.date||'').localeCompare(a.date||''))
+      .map(c => ({ ...c, _attended: empCaseIds.has(c.id) }));
+    maReportData = { emp, from, to, stats, rows: sortedRows };
+
+    body.innerHTML = `
+      <div class="detail-grid" style="margin-bottom:20px">
+        <div class="detail-field">
+          <div class="detail-label">Member</div>
+          <div>${emp.last_name}, ${emp.first_name}</div>
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Date Range</div>
+          <div>${fmt(from)} – ${fmt(to)}</div>
+        </div>
+      </div>
+      <div class="table-wrap" style="max-width:420px;margin-bottom:24px">
+        <table>
+          <thead><tr><th></th><th>Count</th><th>% of Totals</th></tr></thead>
+          <tbody>
+            ${stats.map(s => `<tr><td>${s.label}</td><td class="muted">${s.m}</td><td class="muted">${s.pct}%</td></tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>Date</th><th>Day of Week</th><th>Category</th><th>Type</th>
+            <th>Responding</th><th>Call No</th><th>Location</th><th>Notes</th>
+          </tr></thead>
+          <tbody>
+            ${sortedRows.length ? sortedRows.map(c => `<tr style="${c._attended ? 'background:#dcfce7' : ''}">
+              <td style="white-space:nowrap">${fmt(c.date)}</td>
+              <td class="muted">${maDayOfWeek(c.date)}</td>
+              <td class="muted">${c.case_cat || '—'}</td>
+              <td class="muted">${c.case_type || '—'}</td>
+              <td class="muted">${c._resp_count || 0}</td>
+              <td class="muted">${c._attended ? (emp.call_no || '—') : ''}</td>
+              <td class="muted">${c.location || '—'}</td>
+              <td class="muted" style="max-width:260px">${truncate(c.notes, 80)}</td>
+            </tr>`).join('') : '<tr><td colspan="8"><div class="empty">No cases found for this period.</div></td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    body.innerHTML = `<div style="padding:16px;color:#ef4444">Error loading report: ${err.message}</div>`;
+  }
+}
+
+function exportMemberActivity(type) {
+  if (!maReportData) return;
+  const { emp, from, to, stats, rows } = maReportData;
+  const statsHeaders = ['', 'Count', '% of Totals'];
+  const statsData = stats.map(s => [s.label, s.m, s.pct + '%']);
+  const rowHeaders = ['Date','Day of Week','Category','Type','Responding','Call No','Location','Notes'];
+  const rowData = rows.map(c => [
+    fmt(c.date), maDayOfWeek(c.date), c.case_cat || '', c.case_type || '',
+    c._resp_count || 0, c._attended ? (emp.call_no || '') : '', c.location || '', c.notes || ''
+  ]);
+
+  if (type === 'csv') {
+    const lines = [
+      [`Member Activity Report — ${emp.last_name}, ${emp.first_name}`],
+      [`Date Range: ${fmt(from)} to ${fmt(to)}`],
+      [],
+      statsHeaders, ...statsData,
+      [],
+      rowHeaders, ...rowData
+    ];
+    const csv = lines.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = `WSAR_MemberActivity_${emp.last_name}_${from}_to_${to}.csv`;
+    a.click();
+  } else {
+    const statsRows = statsData.map(r => `<tr>${r.map(v=>`<td>${v}</td>`).join('')}</tr>`).join('');
+    const tableRows = rows.map((c, i) => {
+      const tdStyle = c._attended ? ' style="background:#dcfce7"' : '';
+      return `<tr>${rowData[i].map(v=>`<td${tdStyle}>${v}</td>`).join('')}</tr>`;
+    }).join('');
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html><head><title>WSAR Member Activity — ${emp.last_name}, ${emp.first_name}</title>
+      <style>
+        body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; }
+        h2 { margin-bottom: 4px; }
+        p { color: #666; margin-bottom: 16px; font-size: 11px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+        th { background: #1e40af; color: white; padding: 7px 10px; text-align: left; font-size: 11px; }
+        td { padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
+        tr:nth-child(even) td { background: #f8fafc; }
+        .stats-table { max-width: 360px; }
+        @media print { body { padding: 0; } }
+      </style></head><body>
+      <h2>WSAR Member Activity — ${emp.last_name}, ${emp.first_name}</h2>
+      <p>Date Range: ${fmt(from)} – ${fmt(to)} — Exported ${new Date().toLocaleDateString()}</p>
+      <table class="stats-table"><thead><tr>${statsHeaders.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${statsRows}</tbody></table>
+      <table><thead><tr>${rowHeaders.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+      <tbody>${tableRows}</tbody></table>
+      <script>window.onload=()=>{window.print();}<\/script>
+      </body></html>`);
+    win.document.close();
+  }
 }
 
 function renderTraining() {
