@@ -745,13 +745,13 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr>
-              <th>Call #</th>
-              <th>Member Name</th>
-              <th>Eligible Courses</th>
-              <th># Complete</th>
-              <th>% Complete</th>
-              <th>Course Not Complete</th>
+            <thead><tr id="core-by-member-thead">
+              <th class="sortable" data-col="call_no">Call # <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="last_name">Member Name <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="eligibleCount">Eligible Courses <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="completeCount"># Complete <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="pct">% Complete <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="notComplete">Course Not Complete <span class="sort-arrow">↕</span></th>
             </tr></thead>
             <tbody id="core-by-member-tbody">
               <tr><td colspan="6"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
@@ -1463,6 +1463,7 @@ let currentCoreRecordId = null;
 let casesSort  = { col: 'date', dir: 'desc' };
 let rosterSort = { col: 'call_no', dir: 'asc' };
 let coreSort   = { col: 'last_name', dir: 'asc' };
+let coreByMemberSort = { col: 'pct', dir: 'asc' };
 
 // ── MEMBER FILTER STATE ───────────────────────────────────────────
 let memberFilterCaseIds = null;  // null = no filter; Set = matched case ids
@@ -2527,6 +2528,19 @@ document.getElementById('core-roster-thead').addEventListener('click', e => {
   renderTraining();
 });
 
+// ── CORE TRAINING BY MEMBER SORT CLICK ───────────────────────────────
+document.getElementById('core-by-member-thead').addEventListener('click', e => {
+  const th = e.target.closest('th.sortable');
+  if (!th) return;
+  const col = th.dataset.col;
+  if (coreByMemberSort.col === col) {
+    coreByMemberSort.dir = coreByMemberSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    coreByMemberSort = { col, dir: 'asc' };
+  }
+  renderCoreByMember();
+});
+
 // ── EXPORT CSV ────────────────────────────────────────────────────
 function exportCasesCSV() {
   const visibleRows = allCases.filter(c => {
@@ -3389,24 +3403,50 @@ function getCoreByMemberRows() {
       const notComplete = incomplete.length === 0 ? '—'
         : incomplete.length === 1 ? incomplete[0].course_name
         : 'Multiple';
-      return { emp, eligibleCount: eligible.length, completeCount, pct, notComplete };
+      return { emp, eligibleCount: eligible.length, completeCount, pct, notComplete, incompleteCount: incomplete.length };
     })
-    .filter(Boolean)
-    .sort((a, b) => (a.emp.last_name || '').localeCompare(b.emp.last_name || ''));
+    .filter(Boolean);
 }
 
 function renderCoreByMember() {
   coreByMemberRows = getCoreByMemberRows();
+
+  const { col, dir } = coreByMemberSort;
+  coreByMemberRows.sort((a, b) => {
+    let av, bv;
+    if (col === 'call_no')      { av = a.emp.call_no || '';   bv = b.emp.call_no || ''; }
+    else if (col === 'last_name') { av = (a.emp.last_name||'').toLowerCase(); bv = (b.emp.last_name||'').toLowerCase(); }
+    else if (col === 'notComplete') { av = a.incompleteCount; bv = b.incompleteCount; }
+    else { av = a[col]; bv = b[col]; }
+    if (av < bv) return dir === 'asc' ? -1 : 1;
+    if (av > bv) return dir === 'asc' ?  1 : -1;
+    return (a.emp.last_name||'').localeCompare(b.emp.last_name||'');
+  });
+
+  document.querySelectorAll('#core-by-member-thead th.sortable').forEach(th => {
+    const isActive = th.dataset.col === col;
+    th.classList.toggle('sort-asc',  isActive && dir === 'asc');
+    th.classList.toggle('sort-desc', isActive && dir === 'desc');
+    const arrow = th.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = isActive ? (dir === 'asc' ? '↑' : '↓') : '↕';
+  });
+
   const tbody = document.getElementById('core-by-member-tbody');
   tbody.innerHTML = coreByMemberRows.length
-    ? coreByMemberRows.map(r => `<tr>
-        <td><strong>${r.emp.call_no || '—'}</strong></td>
-        <td>${r.emp.last_name}, ${r.emp.first_name}</td>
-        <td class="muted">${r.eligibleCount}</td>
-        <td class="muted">${r.completeCount}</td>
-        <td>${scoreBar(r.pct)}</td>
-        <td class="muted">${r.notComplete}</td>
-      </tr>`).join('')
+    ? coreByMemberRows.map(r => {
+        const rowBg = r.pct === 100 ? '#dcfce7'
+          : r.incompleteCount === 1 ? '#fef9c3'
+          : r.incompleteCount >= 2 ? '#ffedd5'
+          : '';
+        return `<tr style="${rowBg ? `background:${rowBg}` : ''}">
+          <td><strong>${r.emp.call_no || '—'}</strong></td>
+          <td>${r.emp.last_name}, ${r.emp.first_name}</td>
+          <td class="muted">${r.eligibleCount}</td>
+          <td class="muted">${r.completeCount}</td>
+          <td>${scoreBar(r.pct)}</td>
+          <td class="muted">${r.notComplete}</td>
+        </tr>`;
+      }).join('')
     : '<tr><td colspan="6"><div class="empty">No members found.</div></td></tr>';
 }
 
