@@ -3228,7 +3228,10 @@ function switchCoreCourse(course) {
 }
 
 function coreCompletionStatus(rec) {
-  if (!rec || !rec.completion_date) return 'Not Started';
+  if (!rec) return 'Not Started';
+  if (!rec.completion_date) {
+    return rec.not_eligible ? 'Not Eligible' : 'Not Started';
+  }
   if (rec.cert_duration_months) {
     const exp = new Date(rec.completion_date + 'T00:00:00');
     exp.setMonth(exp.getMonth() + parseInt(rec.cert_duration_months, 10));
@@ -3243,7 +3246,7 @@ function coreCertExpireDate(rec) {
   return exp.toISOString().slice(0, 10);
 }
 function coreStatusBadge(status) {
-  const m = { 'Not Started':'badge-gray', 'Completed':'badge-green', 'Expired':'badge-red' };
+  const m = { 'Not Started':'badge-gray', 'Completed':'badge-green', 'Expired':'badge-red', 'Not Eligible':'badge-amber' };
   return `<span class="pill ${m[status]||'badge-gray'}">${status}</span>`;
 }
 
@@ -3267,7 +3270,8 @@ function openNotCompletedModal(courseName) {
   const empById = {};
   allEmployees.forEach(e => { empById[e.id] = e; });
   const rows = allCoreRecords
-    .filter(r => r.course_name === courseName && coreCompletionStatus(r) !== 'Completed')
+    .filter(r => r.course_name === courseName &&
+      !['Completed', 'Not Eligible'].includes(coreCompletionStatus(r)))
     .map(r => ({ rec: r, emp: empById[r.employee_id] }))
     .filter(x => x.emp)
     .sort((a, b) => (a.emp.last_name || '').localeCompare(b.emp.last_name || ''));
@@ -3299,9 +3303,10 @@ function renderTrainingSummary() {
 
   tbody.innerHTML = courseList.map(info => {
     const courseRecs = allCoreRecords.filter(r => r.course_name === info.course_name);
-    const completedCount = courseRecs.filter(r => coreCompletionStatus(r) === 'Completed').length;
-    const notCompleted = courseRecs.length - completedCount;
-    const pct = courseRecs.length ? (completedCount / courseRecs.length) * 100 : 0;
+    const eligibleRecs = courseRecs.filter(r => coreCompletionStatus(r) !== 'Not Eligible');
+    const completedCount = eligibleRecs.filter(r => coreCompletionStatus(r) === 'Completed').length;
+    const notCompleted = eligibleRecs.length - completedCount;
+    const pct = eligibleRecs.length ? (completedCount / eligibleRecs.length) * 100 : 0;
     const expDate = computeCertExpiration(info.window_start, info.cert_duration_months);
     const nameSafe = info.course_name.replace(/'/g, "\\'");
     return `<tr>
@@ -3333,8 +3338,9 @@ function renderTraining() {
   ).join('');
 
   const courseRecs = allCoreRecords.filter(r => r.course_name === currentCoreCourse);
-  const completedCount = courseRecs.filter(r => coreCompletionStatus(r) === 'Completed').length;
-  document.getElementById('core-completed-count').textContent = `✓ ${completedCount} / ${courseRecs.length} Completed`;
+  const eligibleCourseRecs = courseRecs.filter(r => coreCompletionStatus(r) !== 'Not Eligible');
+  const completedCount = eligibleCourseRecs.filter(r => coreCompletionStatus(r) === 'Completed').length;
+  document.getElementById('core-completed-count').textContent = `✓ ${completedCount} / ${eligibleCourseRecs.length} Completed`;
 
   // Course info panel (fields are shared across all rows for this course)
   const info = courseRecs[0] || {};
@@ -3379,7 +3385,7 @@ function renderTraining() {
     `${x.emp.first_name} ${x.emp.last_name}`.toLowerCase().includes(search));
 
   // Sort
-  const statusRank = { 'Not Started': 0, 'Completed': 1, 'Expired': 2 };
+  const statusRank = { 'Not Started': 0, 'Not Eligible': 1, 'Completed': 2, 'Expired': 3 };
   rows.sort((a, b) => {
     let av, bv;
     if (coreSort.col === 'completion_date') {
@@ -3413,11 +3419,14 @@ function renderTraining() {
         const status = coreCompletionStatus(rec);
         const selStyle = rec.completion_date
           ? 'width:auto;padding:4px 8px;font-size:12.5px;background:#dcfce7;color:#15803d;border-color:#86efac;font-weight:600;'
-          : 'width:auto;padding:4px 8px;font-size:12.5px;';
+          : status === 'Not Eligible'
+            ? 'width:auto;padding:4px 8px;font-size:12.5px;background:#fef3c7;color:#b45309;border-color:#fcd34d;font-weight:600;'
+            : 'width:auto;padding:4px 8px;font-size:12.5px;';
         const statusCell = canEditRoster
           ? `<div style="display:flex;align-items:center;gap:6px">
                <select class="modal-input" style="${selStyle}" onclick="event.stopPropagation()" onchange="updateCoreStatus('${rec.id}', this.value)">
-                 <option value="Not Started" ${!rec.completion_date?'selected':''}>Not Started</option>
+                 <option value="Not Started" ${status==='Not Started'?'selected':''}>Not Started</option>
+                 <option value="Not Eligible" ${status==='Not Eligible'?'selected':''}>Not Eligible</option>
                  <option value="Completed" ${rec.completion_date?'selected':''}>Completed</option>
                </select>
                ${status==='Expired' ? '<span class="pill badge-red">⚠ Expired</span>' : ''}
@@ -3432,6 +3441,7 @@ function renderTraining() {
           : '—';
         const rowStyleParts = [];
         if (status === 'Not Started') rowStyleParts.push('background:#fef9c3');
+        if (status === 'Not Eligible') rowStyleParts.push('background:#fef3c7');
         if (canEditRoster) rowStyleParts.push('cursor:pointer');
         const rowOnClick = canEditRoster ? `onclick="openCoreMemberEdit('${rec.id}')"` : '';
         return `<tr ${rowOnClick} style="${rowStyleParts.join(';')}">
@@ -3454,9 +3464,15 @@ async function updateCoreStatus(recordId, newStatus) {
   if (newStatus === 'Completed') {
     payload.completion_date = rec.completion_date || new Date().toISOString().slice(0,10);
     payload.grade = rec.grade || 'Pass';
+    payload.not_eligible = false;
+  } else if (newStatus === 'Not Eligible') {
+    payload.completion_date = null;
+    payload.grade = null;
+    payload.not_eligible = true;
   } else {
     payload.completion_date = null;
     payload.grade = null;
+    payload.not_eligible = false;
   }
   try {
     const res = await fetch(
@@ -3525,7 +3541,7 @@ function getCoreExportRows() {
     (x.emp.call_no||'').toLowerCase().includes(search) ||
     `${x.emp.first_name} ${x.emp.last_name}`.toLowerCase().includes(search));
 
-  const statusRank2 = { 'Not Started': 0, 'Completed': 1, 'Expired': 2 };
+  const statusRank2 = { 'Not Started': 0, 'Not Eligible': 1, 'Completed': 2, 'Expired': 3 };
   rows.sort((a, b) => {
     let av, bv;
     if (coreSort.col === 'completion_date') { av = a.rec.completion_date || ''; bv = b.rec.completion_date || ''; }
