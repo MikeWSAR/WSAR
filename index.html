@@ -751,10 +751,11 @@
               <th class="sortable" data-col="eligibleCount">Eligible Courses <span class="sort-arrow">↕</span></th>
               <th class="sortable" data-col="completeCount"># Complete <span class="sort-arrow">↕</span></th>
               <th class="sortable" data-col="pct">% Complete <span class="sort-arrow">↕</span></th>
+              <th class="sortable" data-col="incompleteCount"># Not Complete <span class="sort-arrow">↕</span></th>
               <th class="sortable" data-col="notComplete">Course Not Complete <span class="sort-arrow">↕</span></th>
             </tr></thead>
             <tbody id="core-by-member-tbody">
-              <tr><td colspan="6"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
+              <tr><td colspan="7"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
             </tbody>
           </table>
         </div>
@@ -896,12 +897,10 @@
                 Training <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Regular training does not include Core Training TC or Extra Training TE</span></span>
               </th>
               <th class="sortable" data-col="trainPct">Train % <span class="sort-arrow">↕</span></th>
-              <th class="sortable" data-col="coreTrain">Core Train <span class="sort-arrow">↕</span></th>
-              <th class="sortable" data-col="corePct">Core % <span class="sort-arrow">↕</span></th>
               <th class="sortable" data-col="trainExt">Train Ext <span class="sort-arrow">↕</span></th>
             </tr></thead>
             <tbody id="rep-tbody">
-              <tr><td colspan="13"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
+              <tr><td colspan="11"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
             </tbody>
           </table>
         </div>
@@ -1302,6 +1301,24 @@
             <th>Status</th>
           </tr></thead>
           <tbody id="nc-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MEMBER COURSES NOT COMPLETE MODAL -->
+<div class="modal-overlay" id="member-not-complete-modal">
+  <div class="modal" style="width:420px">
+    <div class="modal-header">
+      <h3 id="mnc-title">Courses Not Complete</h3>
+      <button class="modal-close" onclick="document.getElementById('member-not-complete-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="table-wrap" style="max-height:50vh;overflow-y:auto">
+        <table>
+          <thead><tr><th>Course</th></tr></thead>
+          <tbody id="mnc-tbody"></tbody>
         </table>
       </div>
     </div>
@@ -1943,12 +1960,10 @@ function renderRepRows() {
           <td class="muted">${r.searchPct}%</td>
           <td class="rep-type-count">${lk('T', 'Training', r.training)}</td>
           <td class="muted">${r.trainPct}%</td>
-          <td class="rep-type-count">${lk('TC', 'Core Training', r.coreTrain)}</td>
-          <td class="muted">${r.corePct}%</td>
           <td class="rep-type-count">${lk('TE', 'Train Extra', r.trainExt)}</td>
         </tr>`;
       }).join('')
-    : '<tr><td colspan="13"><div class="empty">No data for this period.</div></td></tr>';
+    : '<tr><td colspan="11"><div class="empty">No data for this period.</div></td></tr>';
 }
 
 // Reporting table sort
@@ -1966,7 +1981,7 @@ document.getElementById('rep-thead').addEventListener('click', e => {
 
 // Export reporting CSV
 function exportReporting() {
-  const cols = ['Rank','Last Name','First Name','Team Eligible','All','Eligible','Eligible %','Searches','Search %','Training','Train %','Core Train','Core %','Train Ext'];
+  const cols = ['Rank','Last Name','First Name','Team Eligible','All','Eligible','Eligible %','Searches','Search %','Training','Train %','Train Ext'];
   const search = (document.getElementById('rep-search').value || '').toLowerCase();
   let rows = repRows.filter(r =>
     !search ||
@@ -1979,7 +1994,7 @@ function exportReporting() {
     ...rows.map((r, i) => [
       i+1, r.e.last_name||'', r.e.first_name||'',
       repTotals.totalEligible, r.all, r.eligible, r.allPct+'%', r.searches, r.searchPct+'%',
-      r.training, r.trainPct+'%', r.coreTrain, r.corePct+'%', r.trainExt
+      r.training, r.trainPct+'%', r.trainExt
     ].map(v => `"${v}"`).join(','))
   ].join('\n');
   const a = document.createElement('a');
@@ -3400,13 +3415,27 @@ function getCoreByMemberRows() {
       const completeCount = eligible.filter(r => coreCompletionStatus(r) === 'Completed').length;
       const pct = eligible.length ? (completeCount / eligible.length) * 100 : 0;
       const incomplete = eligible.filter(r => coreCompletionStatus(r) === 'Not Started');
+      const incompleteCourses = incomplete.map(r => r.course_name);
       const notComplete = incomplete.length === 0 ? '—'
         : incomplete.length === 1 ? incomplete[0].course_name
         : 'Multiple';
-      return { emp, eligibleCount: eligible.length, completeCount, pct, notComplete, incompleteCount: incomplete.length };
+      return { emp, eligibleCount: eligible.length, completeCount, pct, notComplete, incompleteCount: incomplete.length, incompleteCourses };
     })
     .filter(Boolean);
 }
+
+function openMemberNotCompleteModal(empId) {
+  const row = coreByMemberRows.find(r => r.emp.id === empId);
+  if (!row) return;
+  document.getElementById('mnc-title').textContent = `Courses Not Complete — ${row.emp.last_name}, ${row.emp.first_name}`;
+  document.getElementById('mnc-tbody').innerHTML = row.incompleteCourses.length
+    ? row.incompleteCourses.map(name => `<tr><td>${name}</td></tr>`).join('')
+    : '<tr><td><div class="empty">No incomplete courses.</div></td></tr>';
+  document.getElementById('member-not-complete-modal').classList.add('open');
+}
+document.getElementById('member-not-complete-modal').addEventListener('click', function(e) {
+  if (e.target === this) this.classList.remove('open');
+});
 
 function renderCoreByMember() {
   coreByMemberRows = getCoreByMemberRows();
@@ -3438,24 +3467,29 @@ function renderCoreByMember() {
           : r.incompleteCount === 1 ? '#fef9c3'
           : r.incompleteCount >= 2 ? '#ffedd5'
           : '';
+        const notCompleteCell = r.incompleteCount > 1
+          ? `<a href="#" onclick="openMemberNotCompleteModal('${r.emp.id}'); return false;" style="color:var(--brand);font-weight:600;text-decoration:none">${r.notComplete}</a>`
+          : r.notComplete;
         return `<tr style="${rowBg ? `background:${rowBg}` : ''}">
           <td><strong>${r.emp.call_no || '—'}</strong></td>
           <td>${r.emp.last_name}, ${r.emp.first_name}</td>
           <td class="muted">${r.eligibleCount}</td>
           <td class="muted">${r.completeCount}</td>
           <td>${scoreBar(r.pct)}</td>
-          <td class="muted">${r.notComplete}</td>
+          <td class="muted">${r.incompleteCount}</td>
+          <td class="muted">${notCompleteCell}</td>
         </tr>`;
       }).join('')
-    : '<tr><td colspan="6"><div class="empty">No members found.</div></td></tr>';
+    : '<tr><td colspan="7"><div class="empty">No members found.</div></td></tr>';
 }
 
 function exportCoreByMember(type) {
   const rows = coreByMemberRows;
-  const headers = ['Call #','Member Name','Eligible Courses','# Complete','% Complete','Course Not Complete'];
+  const headers = ['Call #','Member Name','Eligible Courses','# Complete','% Complete','# Not Complete','Course Not Complete'];
   const getData = (r) => [
     r.emp.call_no || '', `${r.emp.last_name}, ${r.emp.first_name}`,
-    r.eligibleCount, r.completeCount, r.pct.toFixed(0) + '%', r.notComplete
+    r.eligibleCount, r.completeCount, r.pct.toFixed(0) + '%', r.incompleteCount,
+    r.incompleteCount > 1 ? r.incompleteCourses.join('; ') : r.notComplete
   ];
 
   if (type === 'csv') {
