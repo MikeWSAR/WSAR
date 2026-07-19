@@ -785,7 +785,7 @@
         <div class="stat-card">
           <div class="stat-top">
             <div class="stat-icon-box sib-green">📊</div>
-            <div class="label">Team Average <span class="info-icon col-tip-trigger" style="font-size:11px;">ⓘ<span class="col-tip">Mean of all Active & Rookie member Eligible % for TTM period</span></span></div>
+            <div class="label">Team Average <span class="info-icon col-tip-trigger" style="font-size:11px;">ⓘ<span class="col-tip">Average of all Active & Rookie member Eligible % for TTM period</span></span></div>
           </div>
           <div class="value" id="s-mean-avg">—</div>
         </div>
@@ -864,7 +864,10 @@
 
       <!-- Search + Project Preview -->
       <div class="rep-search-row">
-        <button class="action-btn" onclick="navigate('coreByMember')">👤 Core Training by Member</button>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="action-btn" onclick="navigate('coreByMember')">👤 Core Training by Member</button>
+          <button class="action-btn" onclick="navigate('memberActivity')">📋 Member Activity</button>
+        </div>
         <div class="rep-search-wrap">
           <span class="rep-search-icon">🔍</span>
           <input type="text" class="rep-search-input" id="rep-search" placeholder="Search employee…" oninput="renderRepRows()">
@@ -904,6 +907,67 @@
               <tr><td colspan="11"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- MEMBER ACTIVITY PAGE -->
+    <div id="page-memberActivity" class="page">
+      <div class="section-card" style="margin-bottom:16px">
+        <div class="section-header">
+          <div style="display:flex;align-items:center;gap:12px">
+            <button class="action-btn" onclick="navigate('reporting')">← Back</button>
+            <h3>Member Activity</h3>
+          </div>
+        </div>
+        <div class="detail-grid" style="padding:20px">
+          <div class="detail-field">
+            <div class="detail-label">Member</div>
+            <select class="modal-input" id="ma-member"></select>
+          </div>
+          <div class="detail-field"></div>
+
+          <div class="detail-field full">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="radio" name="ma-mode" id="ma-mode-range" value="range" checked
+                style="width:16px;height:16px;accent-color:var(--brand);cursor:pointer" onchange="updateMemberActivityMode()">
+              <span class="detail-label" style="margin:0">Date range</span>
+            </label>
+          </div>
+          <div class="detail-field">
+            <div class="detail-label">From</div>
+            <input class="modal-input" id="ma-from" type="date">
+          </div>
+          <div class="detail-field">
+            <div class="detail-label">To</div>
+            <input class="modal-input" id="ma-to" type="date">
+          </div>
+
+          <div class="detail-field full" style="color:var(--muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">or</div>
+
+          <div class="detail-field full">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+              <input type="radio" name="ma-mode" id="ma-mode-months" value="months"
+                style="width:16px;height:16px;accent-color:var(--brand);cursor:pointer" onchange="updateMemberActivityMode()">
+              <span class="detail-label" style="margin:0">Last # of months from today</span>
+            </label>
+          </div>
+          <div class="detail-field">
+            <div class="detail-label">Last # of Months</div>
+            <input class="modal-input" id="ma-months" type="number" min="1" value="3" disabled>
+          </div>
+        </div>
+        <div class="modal-footer" style="border-top:1px solid var(--border);padding:14px 20px">
+          <button class="save-btn" onclick="generateMemberActivityReport()">📋 Generate Report</button>
+        </div>
+      </div>
+
+      <div class="section-card" id="ma-results-card" style="display:none">
+        <div class="section-header">
+          <h3 id="ma-results-title">Member Activity</h3>
+        </div>
+        <div style="padding:40px 20px;text-align:center;color:var(--muted)" id="ma-results-body">
+          Report details coming soon.
         </div>
       </div>
     </div>
@@ -1494,15 +1558,18 @@ const pages = { dashboard: document.getElementById('page-dashboard'),
                 training:  document.getElementById('page-training'),
                 reporting: document.getElementById('page-reporting'),
                 trainingSummary: document.getElementById('page-trainingSummary'),
-                coreByMember: document.getElementById('page-coreByMember') };
+                coreByMember: document.getElementById('page-coreByMember'),
+                memberActivity: document.getElementById('page-memberActivity') };
 const navLinks = document.querySelectorAll('#sidebar nav a');
 
 function navigate(page) {
   navLinks.forEach(a => a.classList.toggle('active',
-    a.dataset.page === page || (a.dataset.page === 'trainingSummary' && (page === 'training' || page === 'coreByMember'))));
+    a.dataset.page === page ||
+    (a.dataset.page === 'trainingSummary' && (page === 'training' || page === 'coreByMember')) ||
+    (a.dataset.page === 'reporting' && page === 'memberActivity')));
   Object.entries(pages).forEach(([k, el]) => el.classList.toggle('active', k === page));
   document.getElementById('page-title').textContent =
-    { dashboard: 'Dashboard', cases: 'Case Log', roster: 'Members', training: 'Core Training', reporting: 'Reporting', trainingSummary: 'Core Training Summary', coreByMember: 'Core Training by Member' }[page] || page;
+    { dashboard: 'Dashboard', cases: 'Case Log', roster: 'Members', training: 'Core Training', reporting: 'Reporting', trainingSummary: 'Core Training Summary', coreByMember: 'Core Training by Member', memberActivity: 'Member Activity' }[page] || page;
   document.getElementById('ttm-wrap').style.display = page === 'dashboard' ? '' : 'none';
   if (page === 'cases')     renderCases();
   if (page === 'roster')    renderRoster();
@@ -1511,6 +1578,7 @@ function navigate(page) {
   if (page === 'reporting') loadReporting();
   if (page === 'trainingSummary') renderTrainingSummary();
   if (page === 'coreByMember') renderCoreByMember();
+  if (page === 'memberActivity') renderMemberActivity();
 }
 navLinks.forEach(a => a.addEventListener('click', () => navigate(a.dataset.page)));
 
@@ -3523,6 +3591,57 @@ function exportCoreByMember(type) {
       </body></html>`);
     win.document.close();
   }
+}
+
+// ── MEMBER ACTIVITY REPORT ───────────────────────────────────────────
+function renderMemberActivity() {
+  const sel = document.getElementById('ma-member');
+  if (!sel.dataset.loaded) {
+    const sorted = [...allEmployees].sort((a, b) => (a.last_name||'').localeCompare(b.last_name||''));
+    sel.innerHTML = sorted.map(e =>
+      `<option value="${e.id}">${e.last_name}, ${e.first_name}${e.call_no ? ' (' + e.call_no + ')' : ''}</option>`
+    ).join('');
+    sel.dataset.loaded = '1';
+  }
+  if (!document.getElementById('ma-to').value) {
+    const today = new Date().toISOString().slice(0, 10);
+    document.getElementById('ma-to').value = today;
+    const from = new Date();
+    from.setMonth(from.getMonth() - 3);
+    document.getElementById('ma-from').value = from.toISOString().slice(0, 10);
+  }
+  document.getElementById('ma-results-card').style.display = 'none';
+}
+
+function updateMemberActivityMode() {
+  const useRange = document.getElementById('ma-mode-range').checked;
+  document.getElementById('ma-from').disabled = !useRange;
+  document.getElementById('ma-to').disabled = !useRange;
+  document.getElementById('ma-months').disabled = useRange;
+}
+
+function generateMemberActivityReport() {
+  const empId = document.getElementById('ma-member').value;
+  const emp = allEmployees.find(e => e.id === empId);
+  if (!emp) return;
+
+  let from, to;
+  if (document.getElementById('ma-mode-range').checked) {
+    from = document.getElementById('ma-from').value;
+    to = document.getElementById('ma-to').value;
+  } else {
+    const months = parseInt(document.getElementById('ma-months').value, 10) || 1;
+    const toDate = new Date();
+    to = toDate.toISOString().slice(0, 10);
+    const fromDate = new Date();
+    fromDate.setMonth(fromDate.getMonth() - months);
+    from = fromDate.toISOString().slice(0, 10);
+  }
+
+  document.getElementById('ma-results-title').textContent =
+    `Member Activity — ${emp.last_name}, ${emp.first_name} (${fmt(from)} – ${fmt(to)})`;
+  document.getElementById('ma-results-body').textContent = 'Report details coming soon.';
+  document.getElementById('ma-results-card').style.display = '';
 }
 
 function renderTraining() {
