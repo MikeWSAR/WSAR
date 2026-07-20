@@ -3680,7 +3680,7 @@ async function generateMemberActivityReport() {
     const teamStats = [
       count(teamRows, isS), count(teamRows, isT), count(teamRows, isAll), count(teamRows, isElig)
     ];
-    stats.forEach((s, i) => { s.pct = pct(s.m, teamStats[i]); });
+    stats.forEach((s, i) => { s.t = teamStats[i]; s.pct = pct(s.m, teamStats[i]); });
 
     const sortedRows = [...teamRows]
       .sort((a, b) => (b.date||'').localeCompare(a.date||''))
@@ -3690,26 +3690,26 @@ async function generateMemberActivityReport() {
     body.innerHTML = `
       <div class="detail-grid" style="margin-bottom:20px">
         <div class="detail-field">
-          <div class="detail-label">Member</div>
-          <div>${emp.last_name}, ${emp.first_name}</div>
-        </div>
-        <div class="detail-field">
           <div class="detail-label">Date Range</div>
           <div>${fmt(from)} – ${fmt(to)}</div>
+        </div>
+        <div class="detail-field">
+          <div class="detail-label">Member</div>
+          <div>${emp.last_name}, ${emp.first_name}</div>
         </div>
       </div>
       <div class="table-wrap" style="max-width:420px;margin-bottom:24px">
         <table>
           <thead><tr><th></th><th>Count</th><th>% of Totals</th></tr></thead>
           <tbody>
-            ${stats.map(s => `<tr><td>${s.label}</td><td class="muted">${s.m}</td><td class="muted">${s.pct}%</td></tr>`).join('')}
+            ${stats.map(s => `<tr><td>${s.label}</td><td class="muted">${s.m}/${s.t}</td><td class="muted">${s.pct}%</td></tr>`).join('')}
           </tbody>
         </table>
       </div>
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>Date</th><th>Day of Week</th><th>Category</th><th>Type</th>
+            <th>Date</th><th>Day</th><th>Category</th><th>Type</th>
             <th>Responding</th><th>Call No</th><th>Location</th><th>Notes</th>
           </tr></thead>
           <tbody>
@@ -3736,8 +3736,8 @@ function exportMemberActivity(type) {
   if (!maReportData) return;
   const { emp, from, to, stats, rows } = maReportData;
   const statsHeaders = ['', 'Count', '% of Totals'];
-  const statsData = stats.map(s => [s.label, s.m, s.pct + '%']);
-  const rowHeaders = ['Date','Day of Week','Category','Type','Responding','Call No','Location','Notes'];
+  const statsData = stats.map(s => [s.label, `${s.m}/${s.t}`, s.pct + '%']);
+  const rowHeaders = ['Date','Day','Category','Type','Responding','Call No','Location','Notes'];
   const rowData = rows.map(c => [
     fmt(c.date), maDayOfWeek(c.date), c.case_cat || '', c.case_type || '',
     c._resp_count || 0, c._attended ? (emp.call_no || '') : '', c.location || '', c.notes || ''
