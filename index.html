@@ -84,6 +84,13 @@
       cursor: pointer;
     }
     #ttm-date:focus { border-color: var(--brand); }
+    .ttm-style-input {
+      border: 1px solid var(--border); border-radius: 6px;
+      padding: 5px 10px; font-size: 13px; outline: none;
+      color: var(--text); background: var(--surface);
+      cursor: pointer;
+    }
+    .ttm-style-input:focus { border-color: var(--brand); }
     #topbar h2 { font-size: 22px; font-weight: 700; letter-spacing: -.3px; }
     #topbar .right { display: flex; align-items: center; gap: 12px; }
     .refresh-btn {
@@ -928,19 +935,21 @@
           <div class="detail-field"></div>
 
           <div class="detail-field full">
-            <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
-              <input type="radio" name="ma-mode" id="ma-mode-range" value="range" checked
-                style="width:16px;height:16px;accent-color:var(--brand);cursor:pointer" onchange="updateMemberActivityMode()">
-              <span class="detail-label" style="margin:0">Date range</span>
-            </label>
-          </div>
-          <div class="detail-field">
-            <div class="detail-label">From</div>
-            <input class="modal-input" id="ma-from" type="date">
-          </div>
-          <div class="detail-field">
-            <div class="detail-label">To</div>
-            <input class="modal-input" id="ma-to" type="date">
+            <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0">
+                <input type="radio" name="ma-mode" id="ma-mode-range" value="range" checked
+                  style="width:16px;height:16px;accent-color:var(--brand);cursor:pointer" onchange="updateMemberActivityMode()">
+                <span class="detail-label" style="margin:0">Date range</span>
+              </label>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="detail-label" style="margin:0">From</span>
+                <input class="ttm-style-input" id="ma-from" type="date" style="width:150px">
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="detail-label" style="margin:0">To</span>
+                <input class="ttm-style-input" id="ma-to" type="date" style="width:150px">
+              </div>
+            </div>
           </div>
 
           <div class="detail-field full" style="color:var(--muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px">or</div>
@@ -3642,10 +3651,13 @@ function renderMemberActivity() {
     sel.dataset.loaded = '1';
   }
   if (!document.getElementById('ma-to').value) {
-    const today = new Date().toISOString().slice(0, 10);
-    document.getElementById('ma-to').value = today;
-    const from = new Date();
+    // Default "To" = last day of the previous month
+    const now = new Date();
+    const to = new Date(now.getFullYear(), now.getMonth(), 0);
+    document.getElementById('ma-to').value = to.toISOString().slice(0, 10);
+    const from = new Date(to);
     from.setMonth(from.getMonth() - 3);
+    from.setDate(1);
     document.getElementById('ma-from').value = from.toISOString().slice(0, 10);
   }
   document.getElementById('ma-results-card').style.display = 'none';
@@ -3711,7 +3723,7 @@ async function generateMemberActivityReport() {
       { label: 'Total Call Outs',   m: count(memberRows, isS), desc: 'Medical and Search Pages' },
       { label: 'Total Training',    m: count(memberRows, isT), desc: 'Regular trainings. Extra and Core trainings excluded' },
       { label: 'Total Cases',       m: count(memberRows, isAll), desc: 'Call Outs + Training + Training Extra' },
-      { label: 'Total Eligible Case', m: count(memberRows, isElig), desc: 'Call Outs + Regular Training' },
+      { label: 'Total Eligible Case', m: count(memberRows, isElig), desc: 'Call Outs + Regular Training, % Eligible / Total Cases', bold: true },
     ];
     const teamStats = [
       count(teamRows, isS), count(teamRows, isT), count(teamRows, isAll), count(teamRows, isElig)
@@ -3748,7 +3760,18 @@ async function generateMemberActivityReport() {
         <table>
           <thead><tr><th></th><th>Count</th><th>% of Totals</th><th>Description</th></tr></thead>
           <tbody>
-            ${stats.map(s => `<tr><td>${s.label}</td><td class="muted">${s.m}/${s.t}</td><td class="muted">${s.pct}%</td><td class="muted">${s.desc || '—'}</td></tr>`).join('')}
+            ${stats.map(s => {
+              const isEligRow = s.label === 'Total Eligible Case';
+              const good = s.pct >= 40;
+              const hl = isEligRow ? (good ? '#dcfce7' : '#fef9c3') : '';
+              const border = isEligRow ? (good ? '#86efac' : '#fde047') : '';
+              const cellStyle = hl ? ` style="background:${hl}"` : '';
+              const pctText = s.bold ? `<strong>${s.pct}%</strong>` : s.pct + '%';
+              const pctCell = isEligRow
+                ? `<span style="display:inline-block;padding:2px 14px;border-radius:999px;background:${hl};border:1px solid ${border}">${pctText}</span>`
+                : pctText;
+              return `<tr><td${cellStyle}>${s.label}</td><td class="muted"${cellStyle}>${s.m}/${s.t}</td><td class="muted">${pctCell}</td><td class="muted">${s.desc || '—'}</td></tr>`;
+            }).join('')}
           </tbody>
         </table>
       </div>
@@ -3778,6 +3801,12 @@ async function generateMemberActivityReport() {
   }
 }
 
+function maShortDate(d) {
+  if (!d) return '—';
+  const dt = new Date(d + 'T00:00:00');
+  return `${dt.getMonth() + 1}-${dt.getDate()}-${String(dt.getFullYear()).slice(-2)}`;
+}
+
 function exportMemberActivity(type) {
   if (!maReportData) return;
   const { emp, from, to, stats, rows } = maReportData;
@@ -3804,29 +3833,58 @@ function exportMemberActivity(type) {
     a.download = `WSAR_MemberActivity_${emp.last_name}_${from}_to_${to}.csv`;
     a.click();
   } else {
-    const statsRows = statsData.map(r => `<tr>${r.map(v=>`<td>${v}</td>`).join('')}</tr>`).join('');
+    const statsRows = statsData.map((r, i) => {
+      const s = stats[i];
+      const isEligRow = s.label === 'Total Eligible Case';
+      const good = s.pct >= 40;
+      const hl = isEligRow ? (good ? '#dcfce7' : '#fef9c3') : '';
+      const border = isEligRow ? (good ? '#86efac' : '#fde047') : '';
+      const cellStyle = hl ? ` style="background:${hl}"` : '';
+      const pctText = s.bold ? `<strong>${r[2]}</strong>` : r[2];
+      const pctCell = isEligRow
+        ? `<span style="display:inline-block;padding:2px 14px;border-radius:999px;background:${hl};border:1px solid ${border}">${pctText}</span>`
+        : pctText;
+      return `<tr><td${cellStyle}>${r[0]}</td><td${cellStyle}>${r[1]}</td><td>${pctCell}</td><td>${r[3]}</td></tr>`;
+    }).join('');
+    const pdfRowData = rows.map(c => [
+      maShortDate(c.date), maDayOfWeek(c.date), c.case_cat || '', c.case_type || '',
+      c._resp_count || 0, c._attended ? (emp.call_no || '') : '', truncate(c.location, 15), c.notes || ''
+    ]);
     const tableRows = rows.map((c, i) => {
       const tdStyle = c._attended ? ' style="background:#dcfce7"' : '';
-      return `<tr>${rowData[i].map(v=>`<td${tdStyle}>${v}</td>`).join('')}</tr>`;
+      return `<tr>${pdfRowData[i].map((v, ci) => {
+        const cls = (ci === 6 || ci === 7) ? ' class="nowrap"' : '';
+        return `<td${tdStyle}${cls}>${v}</td>`;
+      }).join('')}</tr>`;
     }).join('');
     const win = window.open('', '_blank');
     win.document.write(`<!DOCTYPE html><html><head><title>WSAR Member Activity — ${emp.last_name}, ${emp.first_name}</title>
       <style>
+        * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; }
         h2 { margin-bottom: 4px; }
         p { color: #666; margin-bottom: 16px; font-size: 11px; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; table-layout: fixed; }
         th { background: #1e40af; color: white; padding: 7px 10px; text-align: left; font-size: 11px; }
         td { padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
+        td.nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1px; }
         tr:nth-child(even) td { background: #f8fafc; }
-        .stats-table { max-width: 640px; }
+        .stats-table { max-width: 640px; table-layout: auto; }
+        table.cases th:nth-child(1), table.cases td:nth-child(1) { width: 8%; }
+        table.cases th:nth-child(2), table.cases td:nth-child(2) { width: 6%; }
+        table.cases th:nth-child(3), table.cases td:nth-child(3) { width: 9%; }
+        table.cases th:nth-child(4), table.cases td:nth-child(4) { width: 6%; }
+        table.cases th:nth-child(5), table.cases td:nth-child(5) { width: 8%; }
+        table.cases th:nth-child(6), table.cases td:nth-child(6) { width: 7%; }
+        table.cases th:nth-child(7), table.cases td:nth-child(7) { width: 16%; }
+        table.cases th:nth-child(8), table.cases td:nth-child(8) { width: 40%; }
         @media print { body { padding: 0; } }
       </style></head><body>
       <h2>WSAR Member Activity — ${emp.last_name}, ${emp.first_name}</h2>
       <p>Date Range: ${fmt(from)} – ${fmt(to)} — Exported ${new Date().toLocaleDateString()}</p>
       <table class="stats-table"><thead><tr>${statsHeaders.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
       <tbody>${statsRows}</tbody></table>
-      <table><thead><tr>${rowHeaders.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+      <table class="cases"><thead><tr>${rowHeaders.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
       <tbody>${tableRows}</tbody></table>
       <script>window.onload=()=>{window.print();}<\/script>
       </body></html>`);
