@@ -3708,15 +3708,25 @@ async function generateMemberActivityReport() {
     const pct = (m, t) => t > 0 ? Math.round(m / t * 100) : 0;
 
     const stats = [
-      { label: 'Total Call Outs',   m: count(memberRows, isS) },
-      { label: 'Total Training',    m: count(memberRows, isT) },
-      { label: 'Total Cases',       m: count(memberRows, isAll) },
-      { label: 'Total Eligible Case', m: count(memberRows, isElig) },
+      { label: 'Total Call Outs',   m: count(memberRows, isS), desc: 'Medical and Search Pages' },
+      { label: 'Total Training',    m: count(memberRows, isT), desc: 'Regular trainings. Extra and Core trainings excluded' },
+      { label: 'Total Cases',       m: count(memberRows, isAll), desc: 'Call Outs + Training + Training Extra' },
+      { label: 'Total Eligible Case', m: count(memberRows, isElig), desc: 'Call Outs + Regular Training' },
     ];
     const teamStats = [
       count(teamRows, isS), count(teamRows, isT), count(teamRows, isAll), count(teamRows, isElig)
     ];
     stats.forEach((s, i) => { s.t = teamStats[i]; s.pct = pct(s.m, teamStats[i]); });
+
+    // Core Training row — pulled from the Core Training tracker (not case1 TC entries)
+    const coreRow = getCoreByMemberRows().find(r => r.emp.id === empId);
+    const coreComplete  = coreRow ? coreRow.completeCount  : 0;
+    const coreEligible  = coreRow ? coreRow.eligibleCount  : 0;
+    const corePct       = coreRow ? Math.round(coreRow.pct) : 0;
+    const coreDesc = corePct < 100
+      ? `Missing: ${coreRow && coreRow.incompleteCourses.length ? coreRow.incompleteCourses.join(', ') : '—'}`
+      : '';
+    stats.push({ label: 'Core Training', m: coreComplete, t: coreEligible, pct: corePct, desc: coreDesc });
 
     const sortedRows = [...teamRows]
       .sort((a, b) => (b.date||'').localeCompare(a.date||''))
@@ -3734,11 +3744,11 @@ async function generateMemberActivityReport() {
           <div>${emp.last_name}, ${emp.first_name}</div>
         </div>
       </div>
-      <div class="table-wrap" style="max-width:420px;margin-bottom:24px">
+      <div class="table-wrap" style="margin-bottom:24px">
         <table>
-          <thead><tr><th></th><th>Count</th><th>% of Totals</th></tr></thead>
+          <thead><tr><th></th><th>Count</th><th>% of Totals</th><th>Description</th></tr></thead>
           <tbody>
-            ${stats.map(s => `<tr><td>${s.label}</td><td class="muted">${s.m}/${s.t}</td><td class="muted">${s.pct}%</td></tr>`).join('')}
+            ${stats.map(s => `<tr><td>${s.label}</td><td class="muted">${s.m}/${s.t}</td><td class="muted">${s.pct}%</td><td class="muted">${s.desc || '—'}</td></tr>`).join('')}
           </tbody>
         </table>
       </div>
@@ -3771,8 +3781,8 @@ async function generateMemberActivityReport() {
 function exportMemberActivity(type) {
   if (!maReportData) return;
   const { emp, from, to, stats, rows } = maReportData;
-  const statsHeaders = ['', 'Count', '% of Totals'];
-  const statsData = stats.map(s => [s.label, `${s.m}/${s.t}`, s.pct + '%']);
+  const statsHeaders = ['', 'Count', '% of Totals', 'Description'];
+  const statsData = stats.map(s => [s.label, `${s.m}/${s.t}`, s.pct + '%', s.desc || '']);
   const rowHeaders = ['Date','Day','Category','Type','Responding','Call No','Location','Notes'];
   const rowData = rows.map(c => [
     fmt(c.date), maDayOfWeek(c.date), c.case_cat || '', c.case_type || '',
@@ -3809,7 +3819,7 @@ function exportMemberActivity(type) {
         th { background: #1e40af; color: white; padding: 7px 10px; text-align: left; font-size: 11px; }
         td { padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
         tr:nth-child(even) td { background: #f8fafc; }
-        .stats-table { max-width: 360px; }
+        .stats-table { max-width: 640px; }
         @media print { body { padding: 0; } }
       </style></head><body>
       <h2>WSAR Member Activity — ${emp.last_name}, ${emp.first_name}</h2>
