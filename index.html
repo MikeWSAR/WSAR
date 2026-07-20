@@ -1196,6 +1196,8 @@
       <button class="save-btn admin-only" onclick="saveCaseDetail()">💾 Save Changes</button>
       <button class="cancel-btn" onclick="closeCaseModal()">Cancel</button>
       <span class="save-msg" id="save-msg">✓ Saved!</span>
+      <button class="cancel-btn admin-only" id="delete-case-btn" onclick="deleteCaseRecord()"
+        style="color:#b91c1c;border-color:#fca5a5;background:#fee2e2">🗑 Delete</button>
       <button class="history-toggle" id="history-toggle" onclick="toggleHistory()" style="margin-left:auto">📜 View History</button>
     </div>
     <div id="history-panel" class="history-panel" style="padding: 0 20px 16px; display:none;">
@@ -2863,6 +2865,7 @@ async function openAddCase() {
   numSpan.textContent = 'New Case';
   footer.style.display = 'flex';
   topBtn.style.display = '';
+  document.getElementById('delete-case-btn').style.display = 'none';
   modal.classList.add('open');
 
   const statusOrder = { 'Active':1, 'Admin':2, 'Rookie':3 };
@@ -3111,6 +3114,7 @@ async function openCaseDetail(caseId) {
 
     footer.style.display = 'flex';
     topBtn.style.display = '';
+    document.getElementById('delete-case-btn').style.display = currentRole === 'Admin' ? '' : 'none';
   } catch(e) {
     body.innerHTML = `<div class="empty" style="color:#b91c1c">⚠️ Error: ${e.message}</div>`;
   }
@@ -3283,6 +3287,38 @@ async function toggleSubmittedField() { const el = document.getElementById('f-su
   } catch(err) {
     btns.forEach(b => { b.disabled = false; b.textContent = '💾 Save Changes'; });
     let __msg = err.message; try { const __p = JSON.parse(err.message); if (__p.code === '23505' && (__p.message||'').includes('case1_case_number_unique')) { __msg = `Case number "${document.getElementById('f-case-number')?.value.trim()}" already exists. Please use a different case number.`; } else if (__p.message) { __msg = __p.message; } } catch(_e) {} alert('Save failed: ' + __msg);
+  }
+}
+
+async function deleteCaseRecord() {
+  if (currentRole !== 'Admin') return;
+  if (!currentCaseId || currentCaseId === '__new__') return;
+
+  const caseNum = document.getElementById('modal-case-num').textContent;
+  if (!confirm(`Delete case ${caseNum}? This permanently deletes the entire case record, including all responding members and history, and cannot be undone.`)) return;
+
+  const delBtn = document.getElementById('delete-case-btn');
+  delBtn.disabled = true;
+  delBtn.textContent = 'Deleting…';
+
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/case1?id=eq.${currentCaseId}`,
+      { method: 'DELETE', headers }
+    );
+    if (!res.ok) throw new Error(await res.text());
+
+    allCases = allCases.filter(c => c.id !== currentCaseId);
+    delete caseEmpCounts[currentCaseId];
+
+    closeCaseModal();
+    renderCases();
+    renderDashboard();
+  } catch (err) {
+    alert('Failed to delete case: ' + err.message);
+  } finally {
+    delBtn.disabled = false;
+    delBtn.textContent = '🗑 Delete';
   }
 }
 
