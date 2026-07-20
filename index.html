@@ -836,17 +836,17 @@
           <div class="rep-stat-box rep-stat-tooltip-wrap">
             <div class="rsl">Total Training <span class="info-icon">ⓘ</span></div>
             <div class="rsv" id="rep-total-training">—</div>
-            <div class="rep-stat-tooltip">Regular training does not include Core Training TC or Extra Training TE</div>
+            <div class="rep-stat-tooltip">Total Training is Type = T only. Core Training TC and Extra Training TE are not included.</div>
           </div>
           <div class="rep-stat-box rep-stat-tooltip-wrap">
             <div class="rsl">Total Cases <span class="info-icon">ⓘ</span></div>
             <div class="rsv" id="rep-total-cases">—</div>
-            <div class="rep-stat-tooltip">Total Cases is Type = S + T + TC + TE. Training Extra are included.</div>
+            <div class="rep-stat-tooltip">Total Cases is Type = S + T + TE. Core Training TC is not included.</div>
           </div>
           <div class="rep-stat-box rep-stat-tooltip-wrap">
             <div class="rsl">Total Eligible Cases <span class="info-icon">ⓘ</span></div>
             <div class="rsv" id="rep-total-eligible">—</div>
-            <div class="rep-stat-tooltip">Eligible is Type = S + T + TC</div>
+            <div class="rep-stat-tooltip">Eligible is Type = S + T. Core Training TC is not included.</div>
           </div>
           <div class="rep-stat-box rep-stat-tooltip-wrap">
             <div class="rsl">Team Ave W/O Rookie <span class="info-icon">ⓘ</span></div>
@@ -885,10 +885,10 @@
               <th class="sortable" data-col="first_name">First Name <span class="sort-arrow">↕</span></th>
               <th>Team Eligible</th>
               <th class="sortable" data-col="all" style="position:relative;">
-                All <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Member Total Type = S+T+TC+TE</span></span>
+                All <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Member Total Type = S+T+TE (TC not included)</span></span>
               </th>
               <th class="sortable" data-col="eligible" style="position:relative;">
-                Eligible <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Member Eligible is Type = S+T+TC</span></span>
+                Eligible <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Member Eligible is Type = S+T (TC not included)</span></span>
               </th>
               <th class="sortable" data-col="allPct" style="position:relative;">
                 Eligible % <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Member All divided by Team Eligible</span></span>
@@ -1674,15 +1674,15 @@ async function renderDashboard() {
   document.getElementById('s-total').textContent   = ttmTotal.toLocaleString();
 
   // --- Eligible case counts for TTM (mirrors Reporting logic) ---
-  const ttmEligible = ttmCases.filter(c => ['S','T','TC'].includes(c.case_type));
-  const totalEligible = ttmEligible.length; // S+T+TC denominator
+  const ttmEligible = ttmCases.filter(c => ['S','T'].includes(c.case_type));
+  const totalEligible = ttmEligible.length; // S+T denominator (TC excluded)
 
   // Build caseType lookup for TTM cases
   const ttmCaseTypeMap = {};
   ttmCases.forEach(c => { ttmCaseTypeMap[c.id] = c.case_type; });
 
   // --- Fetch member participation for TTM ---
-  // empData[employee_id] = { all: 0 }  (all = S+T+TC+TE attended)
+  // empData[employee_id] = { all: 0 }  (all = S+T+TE attended, TC excluded)
   let empData = {}; // { employee_id: { all } }
   try {
     if (ttmCases.length > 0) {
@@ -1697,7 +1697,7 @@ async function renderDashboard() {
         if (Array.isArray(data)) {
           data.forEach(r => {
             const ct = ttmCaseTypeMap[r.case_id];
-            if (!['S','T','TC','TE'].includes(ct)) return;
+            if (!['S','T','TE'].includes(ct)) return;
             if (!empData[r.employee_id]) empData[r.employee_id] = { all: 0 };
             empData[r.employee_id].all++;
           });
@@ -1838,12 +1838,12 @@ async function loadReporting() {
     );
     const periodCases = await caseRes.json();
 
-    const totalCases    = periodCases.length;
     const totalSearches = periodCases.filter(c => c.case_type === 'S').length;
     const totalTraining = periodCases.filter(c => c.case_type === 'T').length;
     const totalTC       = periodCases.filter(c => c.case_type === 'TC').length;
     const totalTE       = periodCases.filter(c => c.case_type === 'TE').length;
-    const totalEligible = totalSearches + totalTraining + totalTC;  // S + T + TC
+    const totalCases    = totalSearches + totalTraining + totalTE;  // S + T + TE (TC excluded)
+    const totalEligible = totalSearches + totalTraining;  // S + T (TC excluded)
     repTotals = { totalCases, totalSearches, totalTraining, totalTC, totalTE, totalEligible };
 
     document.getElementById('rep-total-searches').textContent = totalSearches;
@@ -1873,8 +1873,8 @@ async function loadReporting() {
           const c = caseMap[row.case_id];
           if (!c) return;
           const d = empData[row.employee_id] || (empData[row.employee_id] = { all:0, searches:0, training:0, coreTrain:0, trainExt:0 });
-          // All = S + T + TC + TE (numerator)
-          if (['S','T','TC','TE'].includes(c.case_type)) d.all++;
+          // All = S + T + TE (numerator, TC excluded)
+          if (['S','T','TE'].includes(c.case_type)) d.all++;
           if (c.case_type === 'S')  d.searches++;
           if (c.case_type === 'T')  d.training++;
           if (c.case_type === 'TC') d.coreTrain++;
@@ -1887,7 +1887,7 @@ async function loadReporting() {
     const activeEmps = allEmployees.filter(e => ['Active','Rookie','Admin'].includes(e.status));
     repRows = activeEmps.map(e => {
       const d = empData[e.id] || { all:0, searches:0, training:0, coreTrain:0, trainExt:0 };
-      const eligible = d.searches + d.training + d.coreTrain; // S + T + TC
+      const eligible = d.searches + d.training; // S + T (TC excluded)
       return {
         e,
         all:       d.all,
@@ -1952,17 +1952,17 @@ async function loadReporting() {
       periodCases.forEach(c => {
         if (c.date >= rookieStartStr) {
           subCaseIds.add(c.id);
-          if (['S','T','TC'].includes(c.case_type)) subEligible++;
+          if (['S','T'].includes(c.case_type)) subEligible++;
         }
       });
 
       if (subEligible === 0) return;
 
-      // Count this rookie's attendance in the sub-period (all = S+T+TC+TE)
+      // Count this rookie's attendance in the sub-period (all = S+T+TE, TC excluded)
       const rookieSubAll = ceRawRows.filter(row =>
         row.employee_id === r.e.id &&
         subCaseIds.has(row.case_id) &&
-        ['S','T','TC','TE'].includes(caseMap[row.case_id]?.case_type)
+        ['S','T','TE'].includes(caseMap[row.case_id]?.case_type)
       ).length;
 
       medianPcts.push(Math.round(rookieSubAll / subEligible * 100));
@@ -3702,8 +3702,8 @@ async function generateMemberActivityReport() {
 
     const isS  = c => c.case_type === 'S';
     const isT  = c => c.case_type === 'T';
-    const isElig = c => ['S','T','TC'].includes(c.case_type);
-    const isAll  = c => ['S','T','TC','TE'].includes(c.case_type);
+    const isElig = c => ['S','T'].includes(c.case_type);
+    const isAll  = c => ['S','T','TE'].includes(c.case_type);
     const count = (rows, pred) => rows.filter(pred).length;
     const pct = (m, t) => t > 0 ? Math.round(m / t * 100) : 0;
 
