@@ -827,12 +827,24 @@
       <!-- Top controls row -->
       <div class="rep-top">
         <div class="rep-date-group">
-          <label>From</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="radio" name="rep-mode" id="rep-mode-range" value="range" checked
+              style="width:13px;height:13px;accent-color:var(--brand);cursor:pointer;margin:0" onchange="updateReportingMode()">
+            From
+          </label>
           <input type="date" id="rep-from" onchange="loadReporting()">
         </div>
         <div class="rep-date-group">
           <label>To</label>
           <input type="date" id="rep-to" onchange="loadReporting()">
+        </div>
+        <div class="rep-date-group">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="radio" name="rep-mode" id="rep-mode-ttm" value="ttm"
+              style="width:13px;height:13px;accent-color:var(--brand);cursor:pointer;margin:0" onchange="updateReportingMode()">
+            TTM
+          </label>
+          <input type="date" id="rep-ttm-date" disabled onchange="applyReportingTTM()">
         </div>
         <div class="rep-stat-boxes">
           <div class="rep-stat-box rep-stat-tooltip-wrap">
@@ -869,17 +881,16 @@
         <button class="action-btn" onclick="exportReporting()">⬇ Export</button>
       </div>
 
-      <!-- Search + Project Preview -->
+      <!-- Search + Nav buttons -->
       <div class="rep-search-row">
         <div style="display:flex;align-items:center;gap:10px">
+          <div class="rep-search-wrap">
+            <span class="rep-search-icon">🔍</span>
+            <input type="text" class="rep-search-input" id="rep-search" placeholder="Search employee…" oninput="renderRepRows()">
+          </div>
           <button class="action-btn" onclick="navigate('coreByMember')">👤 Core Training by Member</button>
           <button class="action-btn" onclick="navigate('memberActivity')">📋 Member Activity</button>
         </div>
-        <div class="rep-search-wrap">
-          <span class="rep-search-icon">🔍</span>
-          <input type="text" class="rep-search-input" id="rep-search" placeholder="Search employee…" oninput="renderRepRows()">
-        </div>
-        <button class="action-btn">Project preview</button>
       </div>
 
       <!-- Table -->
@@ -1547,10 +1558,16 @@ let allCoreRecords = [];
 let currentCoreCourse = 'CPR';
 let currentCoreRecordId = null;
 
-// ── TTM DATE (default: today) ─────────────────────────────────────
+// ── TTM DATE (default: last day of the prior month) ────────────────
+function lastDayOfPrevMonth() {
+  const now = new Date();
+  const d = new Date(now.getFullYear(), now.getMonth(), 0);
+  return d.toISOString().slice(0, 10);
+}
+
 (function initTTM() {
   const el = document.getElementById('ttm-date');
-  el.value = new Date().toISOString().slice(0, 10);
+  el.value = lastDayOfPrevMonth();
   el.addEventListener('change', () => renderDashboard());
 })();
 
@@ -1666,7 +1683,7 @@ async function loadAll() {
 // ── DASHBOARD ─────────────────────────────────────────────────────
 async function renderDashboard() {
   // --- TTM date range ---
-  const endStr   = document.getElementById('ttm-date').value || new Date().toISOString().slice(0,10);
+  const endStr   = document.getElementById('ttm-date').value || lastDayOfPrevMonth();
   const endDate  = new Date(endStr + 'T00:00:00');
   const startDate = new Date(endDate);
   startDate.setFullYear(startDate.getFullYear() - 1);
@@ -1830,7 +1847,28 @@ let repTotals  = { totalCases: 0, totalSearches: 0, totalTraining: 0, totalTC: 0
   const jan1  = today.slice(0, 4) + '-01-01';
   document.getElementById('rep-from').value = jan1;
   document.getElementById('rep-to').value   = today;
+  document.getElementById('rep-ttm-date').value = lastDayOfPrevMonth();
 })();
+
+function updateReportingMode() {
+  const useRange = document.getElementById('rep-mode-range').checked;
+  document.getElementById('rep-from').disabled = !useRange;
+  document.getElementById('rep-to').disabled = !useRange;
+  document.getElementById('rep-ttm-date').disabled = useRange;
+  if (!useRange) applyReportingTTM();
+}
+
+function applyReportingTTM() {
+  // TTM — trailing 12 months ending on the entered date
+  const ttmStr = document.getElementById('rep-ttm-date').value || lastDayOfPrevMonth();
+  const toDate = new Date(ttmStr + 'T00:00:00');
+  const fromDate = new Date(toDate);
+  fromDate.setFullYear(fromDate.getFullYear() - 1);
+  fromDate.setDate(fromDate.getDate() + 1);
+  document.getElementById('rep-from').value = fromDate.toISOString().slice(0, 10);
+  document.getElementById('rep-to').value = toDate.toISOString().slice(0, 10);
+  loadReporting();
+}
 
 async function loadReporting() {
   const from = document.getElementById('rep-from').value || '2000-01-01';
@@ -3661,7 +3699,7 @@ function renderMemberActivity() {
     document.getElementById('ma-from').value = from.toISOString().slice(0, 10);
   }
   if (!document.getElementById('ma-ttm-date').value) {
-    document.getElementById('ma-ttm-date').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('ma-ttm-date').value = lastDayOfPrevMonth();
   }
   document.getElementById('ma-results-card').style.display = 'none';
 }
@@ -3690,7 +3728,7 @@ async function generateMemberActivityReport() {
     to = document.getElementById('ma-to').value;
   } else {
     // TTM — trailing 12 months ending on the entered date
-    const ttmStr = document.getElementById('ma-ttm-date').value || new Date().toISOString().slice(0, 10);
+    const ttmStr = document.getElementById('ma-ttm-date').value || lastDayOfPrevMonth();
     const toDate = new Date(ttmStr + 'T00:00:00');
     to = toDate.toISOString().slice(0, 10);
     const fromDate = new Date(toDate);
@@ -3775,7 +3813,7 @@ async function generateMemberActivityReport() {
                 ? `<span style="display:inline-block;padding:2px 14px;border-radius:999px;background:${hl};border:1px solid ${border}">${pctText}</span>`
                 : pctText;
               const labelCell = hl ? `<span style="display:inline-block;padding:2px 10px;border-radius:4px;background:${hl}">${s.label}</span>` : s.label;
-              const countCell = hl ? `<span style="display:inline-block;padding:2px 10px;border-radius:4px;background:${hl}">${s.m}/${s.t}</span>` : `${s.m}/${s.t}`;
+              const countCell = hl ? `<span style="display:inline-block;padding:2px 10px;border-radius:4px;background:${hl}">${s.m} / ${s.t}</span>` : `${s.m} / ${s.t}`;
               return `<tr><td>${labelCell}</td><td class="muted">${countCell}</td><td class="muted">${pctCell}</td><td class="muted">${s.desc || '—'}</td></tr>`;
             }).join('')}
           </tbody>
@@ -3817,7 +3855,7 @@ function exportMemberActivity(type) {
   if (!maReportData) return;
   const { emp, from, to, stats, rows } = maReportData;
   const statsHeaders = ['', 'Count', '% of Totals', 'Description'];
-  const statsData = stats.map(s => [s.label, `${s.m}/${s.t}`, s.pct + '%', s.desc || '']);
+  const statsData = stats.map(s => [s.label, `${s.m} / ${s.t}`, s.pct + '%', s.desc || '']);
   const rowHeaders = ['Date','Day','Category','Type','Responding','Call No','Location','Notes'];
   const rowData = rows.map(c => [
     fmt(c.date), maDayOfWeek(c.date), c.case_cat || '', c.case_type || '',
@@ -3889,6 +3927,10 @@ function exportMemberActivity(type) {
       </style></head><body>
       <h2>WSAR Member Activity — ${emp.last_name}, ${emp.first_name}</h2>
       <p>Date Range: ${fmt(from)} – ${fmt(to)} — Exported ${new Date().toLocaleDateString()}</p>
+      <p style="display:flex;align-items:center;gap:6px;margin-top:-10px">
+        <span style="display:inline-block;width:12px;height:12px;background:#dcfce7;border:1px solid #86efac;border-radius:2px"></span>
+        Green rows are cases you attended
+      </p>
       <table class="stats-table"><thead><tr>${statsHeaders.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
       <tbody>${statsRows}</tbody></table>
       <table class="cases"><thead><tr>${rowHeaders.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
