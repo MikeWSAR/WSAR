@@ -3891,14 +3891,15 @@ function exportMemberActivity(type) {
       const countCell = hl ? `<span style="display:inline-block;padding:2px 10px;border-radius:4px;background:${hl}">${r[1]}</span>` : r[1];
       return `<tr><td>${labelCell}</td><td>${countCell}</td><td>${pctCell}</td><td>${r[3]}</td></tr>`;
     }).join('');
+    const pdfHeaders = ['Date','Day','Category','Type','Call No','Location','Notes'];
     const pdfRowData = rows.map(c => [
       maShortDate(c.date), maDayOfWeek(c.date), c.case_cat || '', c.case_type || '',
-      c._resp_count || 0, c._attended ? (emp.call_no || '') : '', truncate(c.location, 15), c.notes || ''
+      c._attended ? (emp.call_no || '') : '', truncate(c.location, 15), c.notes || ''
     ]);
     const tableRows = rows.map((c, i) => {
       const tdStyle = c._attended ? ' style="background:#dcfce7"' : '';
       return `<tr>${pdfRowData[i].map((v, ci) => {
-        const cls = (ci === 6 || ci === 7) ? ' class="nowrap"' : '';
+        const cls = (ci === 5 || ci === 6) ? ' class="nowrap"' : '';
         return `<td${tdStyle}${cls}>${v}</td>`;
       }).join('')}</tr>`;
     }).join('');
@@ -3914,15 +3915,18 @@ function exportMemberActivity(type) {
         td { padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
         td.nowrap { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 1px; }
         tr:nth-child(even) td { background: #f8fafc; }
-        .stats-table { max-width: 640px; table-layout: auto; }
-        table.cases th:nth-child(1), table.cases td:nth-child(1) { width: 8%; }
-        table.cases th:nth-child(2), table.cases td:nth-child(2) { width: 6%; }
-        table.cases th:nth-child(3), table.cases td:nth-child(3) { width: 9%; }
-        table.cases th:nth-child(4), table.cases td:nth-child(4) { width: 6%; }
+        .stats-table { width: 100%; table-layout: fixed; }
+        .stats-table th:nth-child(1), .stats-table td:nth-child(1) { width: 18%; }
+        .stats-table th:nth-child(2), .stats-table td:nth-child(2) { width: 12%; }
+        .stats-table th:nth-child(3), .stats-table td:nth-child(3) { width: 14%; }
+        .stats-table th:nth-child(4), .stats-table td:nth-child(4) { width: 56%; }
+        table.cases th:nth-child(1), table.cases td:nth-child(1) { width: 9%; }
+        table.cases th:nth-child(2), table.cases td:nth-child(2) { width: 7%; }
+        table.cases th:nth-child(3), table.cases td:nth-child(3) { width: 10%; }
+        table.cases th:nth-child(4), table.cases td:nth-child(4) { width: 7%; }
         table.cases th:nth-child(5), table.cases td:nth-child(5) { width: 8%; }
-        table.cases th:nth-child(6), table.cases td:nth-child(6) { width: 7%; }
-        table.cases th:nth-child(7), table.cases td:nth-child(7) { width: 16%; }
-        table.cases th:nth-child(8), table.cases td:nth-child(8) { width: 40%; }
+        table.cases th:nth-child(6), table.cases td:nth-child(6) { width: 18%; }
+        table.cases th:nth-child(7), table.cases td:nth-child(7) { width: 41%; }
         @media print { body { padding: 0; } }
       </style></head><body>
       <div style="position:relative">
@@ -3943,7 +3947,7 @@ function exportMemberActivity(type) {
       </div>
       <table class="stats-table"><thead><tr>${statsHeaders.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
       <tbody>${statsRows}</tbody></table>
-      <table class="cases"><thead><tr>${rowHeaders.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
+      <table class="cases"><thead><tr>${pdfHeaders.map(h=>`<th>${h}</th>`).join('')}</tr></thead>
       <tbody>${tableRows}</tbody></table>
       <script>window.onload=()=>{window.print();}<\/script>
       </body></html>`);
