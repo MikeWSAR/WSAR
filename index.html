@@ -3874,6 +3874,7 @@ async function generateMemberActivityReport() {
 
     const isS  = c => c.case_type === 'S';
     const isT  = c => c.case_type === 'T';
+    const isTE = c => c.case_type === 'TE';
     const isElig = c => ['S','T'].includes(c.case_type);
     const isAll  = c => ['S','T','TE'].includes(c.case_type);
     const count = (rows, pred) => rows.filter(pred).length;
@@ -3881,7 +3882,7 @@ async function generateMemberActivityReport() {
 
     const stats = [
       { label: 'Total Call Outs',   m: count(memberRows, isS), desc: 'Medical and Search Pages' },
-      { label: 'Total Training',    m: count(memberRows, isT), desc: 'Regular trainings. Extra and Core trainings excluded' },
+      { label: 'Total Regular Training', m: count(memberRows, isT), desc: 'Regular trainings. Extra and Core trainings excluded' },
       { label: 'Total Cases',       m: count(memberRows, isAll), desc: 'Call Outs + Training + Training Extra' },
       { label: 'Total Eligible Case', m: count(memberRows, isElig), desc: 'Call Outs + Regular Training, % equals Total Eligible cases/Total Cases', bold: true },
     ];
@@ -3889,6 +3890,14 @@ async function generateMemberActivityReport() {
       count(teamRows, isS), count(teamRows, isT), count(teamRows, isAll), count(teamRows, isElig)
     ];
     stats.forEach((s, i) => { s.t = teamStats[i]; s.pct = pct(s.m, teamStats[i]); });
+
+    // Extra Training (TE) — member count only, no team total or % (per member-only stat)
+    stats.splice(2, 0, {
+      label: 'Total Extra Training TE',
+      m: count(memberRows, isTE),
+      soloCount: true,
+      desc: 'TE = training not required by whole team. Special teams, etc'
+    });
 
     // Core Training row — pulled from the Core Training tracker (not case1 TC entries)
     const coreRow = getCoreByMemberRows().find(r => r.emp.id === empId);
@@ -3926,11 +3935,12 @@ async function generateMemberActivityReport() {
               const hl = isEligRow ? (good ? '#dcfce7' : '#fef9c3') : '';
               const border = isEligRow ? (good ? '#86efac' : '#fde047') : '';
               const pctText = s.bold ? `<strong>${s.pct}%</strong>` : s.pct + '%';
-              const pctCell = isEligRow
+              const pctCell = s.soloCount ? '—' : (isEligRow
                 ? `<span style="display:inline-block;padding:2px 14px;border-radius:999px;background:${hl};border:1px solid ${border}">${pctText}</span>`
-                : pctText;
+                : pctText);
               const labelCell = hl ? `<span style="display:inline-block;padding:2px 10px;border-radius:4px;background:${hl}">${s.label}</span>` : s.label;
-              const countCell = hl ? `<span style="display:inline-block;padding:2px 10px;border-radius:4px;background:${hl}">${s.m} / ${s.t}</span>` : `${s.m} / ${s.t}`;
+              const countText = s.soloCount ? `${s.m}` : `${s.m} / ${s.t}`;
+              const countCell = hl ? `<span style="display:inline-block;padding:2px 10px;border-radius:4px;background:${hl}">${countText}</span>` : countText;
               return `<tr><td>${labelCell}</td><td class="muted">${countCell}</td><td class="muted">${pctCell}</td><td class="muted">${s.desc || '—'}</td></tr>`;
             }).join('')}
           </tbody>
@@ -3972,7 +3982,7 @@ function exportMemberActivity(type) {
   if (!maReportData) return;
   const { emp, from, to, stats, rows } = maReportData;
   const statsHeaders = ['', 'Count', '% of Totals', 'Description'];
-  const statsData = stats.map(s => [s.label, `${s.m} / ${s.t}`, s.pct + '%', s.desc || '']);
+  const statsData = stats.map(s => [s.label, s.soloCount ? `${s.m}` : `${s.m} / ${s.t}`, s.soloCount ? '—' : s.pct + '%', s.desc || '']);
   const rowHeaders = ['Date','Day','Category','Type','Responding','Call No','Location','Notes'];
   const rowData = rows.map(c => [
     fmt(c.date), maDayOfWeek(c.date), c.case_cat || '', c.case_type || '',
