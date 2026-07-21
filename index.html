@@ -583,12 +583,15 @@
       font-size: 12px; text-decoration: underline; padding: 0;
     }
     .md-clear-btn:hover { color: var(--text); }
-    /* ── LOGIN SCREEN ──────────────────────── */
-    #login-screen {
+    /* ── LOGIN / RESET SCREEN ──────────────── */
+    .auth-screen {
       position: fixed; inset: 0; background: #0d1f35;
       display: flex; align-items: center; justify-content: center; z-index: 9999;
     }
-    #login-screen.hidden { display: none; }
+    .auth-screen.hidden { display: none; }
+    .login-forgot { width: 100%; text-align: right; margin-top: -8px; margin-bottom: 16px; }
+    .login-forgot a { color: #1e40af; font-size: 12px; text-decoration: none; cursor: pointer; }
+    .login-forgot a:hover { text-decoration: underline; }
     .login-box {
       background: #fff; border-radius: 16px; padding: 48px 44px;
       width: 380px; box-shadow: 0 20px 60px rgba(0,0,0,.4);
@@ -642,7 +645,7 @@
 <body>
 
 <!-- LOGIN SCREEN -->
-<div id="login-screen">
+<div id="login-screen" class="auth-screen">
   <div class="login-box">
     <div class="login-logo">🚁</div>
     <div class="login-title">SAR Tracker</div>
@@ -655,8 +658,28 @@
       <label>Password</label>
       <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" />
     </div>
+    <div class="login-forgot"><a onclick="doForgotPassword()">Forgot password?</a></div>
     <button class="login-btn" id="login-btn" onclick="doLogin()">Sign In</button>
     <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- PASSWORD RESET SCREEN (shown when arriving via a Supabase recovery link) -->
+<div id="reset-screen" class="auth-screen hidden">
+  <div class="login-box">
+    <div class="login-logo">🔑</div>
+    <div class="login-title">Set New Password</div>
+    <div class="login-sub">Choose a new password for your SAR Tracker account</div>
+    <div class="login-field">
+      <label>New Password</label>
+      <input type="password" id="reset-password" placeholder="••••••••" autocomplete="new-password" />
+    </div>
+    <div class="login-field">
+      <label>Confirm Password</label>
+      <input type="password" id="reset-password-confirm" placeholder="••••••••" autocomplete="new-password" />
+    </div>
+    <button class="login-btn" id="reset-btn" onclick="doSetNewPassword()">Set Password</button>
+    <div class="login-error" id="reset-error"></div>
   </div>
 </div>
 
@@ -1470,11 +1493,39 @@ function getHeaders() {
 Object.defineProperty(window, 'headers', { get: () => getHeaders() });
 
 // ── AUTH FUNCTIONS ────────────────────────────────────────────────
+
+// Shared post-authentication step: fetch role, reveal the app.
+// Used by both normal sign-in and after a password reset (the recovery
+// access_token is itself a valid session token).
+async function completeSignIn(token, user) {
+  authToken  = token;
+  currentUser = user;
+  const roleRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/rpc/get_my_role`,
+    { method: 'POST', headers: { ...getHeaders(), 'Content-Type': 'application/json' }, body: '{}' }
+  );
+  const roleRaw = await roleRes.text();
+  console.log('Role response:', roleRes.status, roleRaw);
+  // rpc/get_my_role returns: "Admin" (JSON string), or null, or [{...}]
+  let roleData;
+  try { roleData = JSON.parse(roleRaw); } catch(e) { roleData = roleRaw; }
+  if (typeof roleData === 'string') currentRole = roleData || null;
+  else if (Array.isArray(roleData)) currentRole = roleData[0]?.role || null;
+  else currentRole = null;
+  if (!currentRole) throw new Error('No role assigned. Contact your administrator.');
+  // Show app
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('reset-screen').classList.add('hidden');
+  applyRoleUI();
+  loadAll();
+}
+
 async function doLogin() {
   const email    = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
   const errEl    = document.getElementById('login-error');
   const btn      = document.getElementById('login-btn');
+  errEl.style.color = '';
   errEl.textContent = '';
   if (!email || !password) { errEl.textContent = 'Please enter email and password.'; return; }
   btn.disabled = true; btn.textContent = 'Signing in…';
@@ -1486,30 +1537,91 @@ async function doLogin() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error_description || data.msg || 'Login failed');
-    authToken  = data.access_token;
-    currentUser = data.user;
-    // Fetch role
-    const roleRes = await fetch(
-      `${SUPABASE_URL}/rest/v1/rpc/get_my_role`,
-      { method: 'POST', headers: { ...getHeaders(), 'Content-Type': 'application/json' }, body: '{}' }
-    );
-    const roleRaw = await roleRes.text();
-    console.log('Role response:', roleRes.status, roleRaw);
-    // rpc/get_my_role returns: "Admin" (JSON string), or null, or [{...}]
-    let roleData;
-    try { roleData = JSON.parse(roleRaw); } catch(e) { roleData = roleRaw; }
-    if (typeof roleData === 'string') currentRole = roleData || null;
-    else if (Array.isArray(roleData)) currentRole = roleData[0]?.role || null;
-    else currentRole = null;
-    if (!currentRole) throw new Error('No role assigned. Contact your administrator.');
-    // Show app
-    document.getElementById('login-screen').classList.add('hidden');
-    applyRoleUI();
-    loadAll();
+    await completeSignIn(data.access_token, data.user);
   } catch(e) {
     errEl.textContent = e.message;
   } finally {
     btn.disabled = false; btn.textContent = 'Sign In';
+  }
+}
+
+// Sends a Supabase password-recovery email to the address in the login form.
+async function doForgotPassword() {
+  const email = document.getElementById('login-email').value.trim();
+  const errEl = document.getElementById('login-error');
+  if (!email) {
+    errEl.style.color = '';
+    errEl.textContent = 'Enter your email above, then click "Forgot password?"';
+    return;
+  }
+  errEl.style.color = '#64748b';
+  errEl.textContent = 'Sending reset email…';
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
+      body: JSON.stringify({ email }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error_description || data.msg || 'Could not send reset email.');
+    }
+    errEl.style.color = '#16a34a';
+    errEl.textContent = 'Check your email for a password reset link.';
+  } catch(e) {
+    errEl.style.color = '#ef4444';
+    errEl.textContent = e.message;
+  }
+}
+
+// Detects an incoming Supabase recovery link (#access_token=...&type=recovery)
+// and shows the "Set New Password" screen instead of the login form.
+let recoveryToken = null;
+(function checkForRecoveryLink() {
+  const hash = window.location.hash;
+  if (!hash || !hash.includes('type=recovery')) return;
+  const params = new URLSearchParams(hash.slice(1));
+  const token = params.get('access_token');
+  if (!token) return;
+  recoveryToken = token;
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('reset-screen').classList.remove('hidden');
+  // Strip the token out of the visible URL so refresh/back doesn't resubmit it
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+})();
+
+async function doSetNewPassword() {
+  const pw1   = document.getElementById('reset-password').value;
+  const pw2   = document.getElementById('reset-password-confirm').value;
+  const errEl = document.getElementById('reset-error');
+  const btn   = document.getElementById('reset-btn');
+  errEl.style.color = '';
+  errEl.textContent = '';
+  if (!recoveryToken) {
+    errEl.style.color = '#ef4444';
+    errEl.textContent = 'This reset link is invalid or has expired. Please request a new one.';
+    return;
+  }
+  if (!pw1 || !pw2) { errEl.textContent = 'Please enter and confirm your new password.'; return; }
+  if (pw1.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; return; }
+  if (pw1 !== pw2) { errEl.textContent = 'Passwords do not match.'; return; }
+  btn.disabled = true; btn.textContent = 'Setting Password…';
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      method: 'PUT',
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${recoveryToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pw1 }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error_description || data.msg || data.message || 'Could not set password.');
+    const tok = recoveryToken;
+    recoveryToken = null;
+    await completeSignIn(tok, data);
+  } catch(e) {
+    errEl.style.color = '#ef4444';
+    errEl.textContent = e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Set Password';
   }
 }
 
@@ -1537,6 +1649,11 @@ document.addEventListener('DOMContentLoaded', () => {
   ['login-email','login-password'].forEach(id => {
     document.getElementById(id)?.addEventListener('keydown', e => {
       if (e.key === 'Enter') doLogin();
+    });
+  });
+  ['reset-password','reset-password-confirm'].forEach(id => {
+    document.getElementById(id)?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') doSetNewPassword();
     });
   });
 });
