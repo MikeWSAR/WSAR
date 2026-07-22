@@ -1557,7 +1557,7 @@ async function doForgotPassword() {
   errEl.style.color = '#64748b';
   errEl.textContent = 'Sending reset email…';
   try {
-    const res = await fetch(`${SUPABASE_URL}/auth/v1/recover`, {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/recover?redirect_to=${encodeURIComponent('https://mikewsar.github.io/WSAR/')}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
       body: JSON.stringify({ email }),
