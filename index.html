@@ -3881,10 +3881,10 @@ async function generateMemberActivityReport() {
     const pct = (m, t) => t > 0 ? Math.round(m / t * 100) : 0;
 
     const stats = [
-      { label: 'Call Outs',   m: count(memberRows, isS), desc: 'Medical and Search Pages' },
+      { label: 'Search+Medicals',   m: count(memberRows, isS), desc: 'Medical and Search Pages' },
       { label: 'Regular Training', m: count(memberRows, isT), desc: 'Regular trainings. Extra and Core trainings excluded' },
-      { label: 'Total Possible Cases', m: count(memberRows, isAll), noPct: true, desc: 'Call Outs + Training + Training Extra' },
-      { label: 'Total Eligible Case', m: count(memberRows, isElig), desc: 'Eligible=Call outs + Reg training divided by all cases member attended (Including TE)', bold: true },
+      { label: 'Total Possible Cases', m: count(memberRows, isAll), noPct: true, desc: 'Medical + Search + Reg Train + Extra Training' },
+      { label: 'Total Eligible Cases', m: count(memberRows, isElig), desc: 'Eligible=Call outs + Reg training divided by all cases member attended (Including TE)', bold: true },
     ];
     const teamStats = [
       count(teamRows, isS), count(teamRows, isT), count(teamRows, isAll), count(teamRows, isElig)
@@ -3930,7 +3930,7 @@ async function generateMemberActivityReport() {
           <thead><tr><th></th><th>Count</th><th>% of Totals</th><th>Description</th></tr></thead>
           <tbody>
             ${stats.map(s => {
-              const isEligRow = s.label === 'Total Eligible Case';
+              const isEligRow = s.label === 'Total Eligible Cases';
               const good = s.pct >= 40;
               const hl = isEligRow ? (good ? '#dcfce7' : '#fef9c3') : '';
               const border = isEligRow ? (good ? '#86efac' : '#fde047') : '';
@@ -4006,7 +4006,7 @@ function exportMemberActivity(type) {
   } else {
     const statsRows = statsData.map((r, i) => {
       const s = stats[i];
-      const isEligRow = s.label === 'Total Eligible Case';
+      const isEligRow = s.label === 'Total Eligible Cases';
       const good = s.pct >= 40;
       const hl = isEligRow ? (good ? '#dcfce7' : '#fef9c3') : '';
       const border = isEligRow ? (good ? '#86efac' : '#fde047') : '';
