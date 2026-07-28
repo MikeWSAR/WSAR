@@ -1478,7 +1478,7 @@ const SUPABASE_URL  = 'https://qvakbmdwmnlfdippkdyz.supabase.co';
 const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InF2YWtibWR3bW5sZmRpcHBrZHl6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI3MzU5MDgsImV4cCI6MjA5ODMxMTkwOH0.c2Zc3pPBEX0_MEEm_PJZJ1N78AePj7Pk1yGcU0yxnu4';
 
 // Auth state — populated after login
-let authToken  = null;   // user's JWT from Supabase Auth
+let authToken = null; /* JWT from Supabase Auth */ let refreshToken = null; /* used to silently renew the session */ let tokenRefreshTimer = null; /* timer id for silent renewal */
 let currentRole = null;  // 'Admin' | 'Board' | 'Member'
 let currentUser = null;  // auth user object
 
@@ -1497,9 +1497,42 @@ Object.defineProperty(window, 'headers', { get: () => getHeaders() });
 // Shared post-authentication step: fetch role, reveal the app.
 // Used by both normal sign-in and after a password reset (the recovery
 // access_token is itself a valid session token).
-async function completeSignIn(token, user) {
+// Silently renew the session before the access token expires, so a tab
+  // left open for more than an hour doesn't start failing writes with
+  // "JWT expired". Falls back to a clean logout if the refresh itself fails.
+  function scheduleTokenRefresh(expiresIn) {
+      if (tokenRefreshTimer) clearTimeout(tokenRefreshTimer);
+      const seconds = (typeof expiresIn === 'number' && expiresIn > 90) ? expiresIn : 3600;
+      const delayMs = Math.max(seconds - 60, 30) * 1000;
+      tokenRefreshTimer = setTimeout(refreshSession, delayMs);
+  }
+  
+  async function refreshSession() {
+      if (!refreshToken) return;
+      try {
+            const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', apikey: SUPABASE_KEY },
+                    body: JSON.stringify({ refresh_token: refreshToken }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error_description || data.msg || 'Session refresh failed');
+            authToken = data.access_token;
+            refreshToken = data.refresh_token || refreshToken;
+            scheduleTokenRefresh(data.expires_in);
+      } catch (e) {
+            console.error('Silent session refresh failed, signing out:', e);
+            doLogout();
+            const errEl = document.getElementById('login-error');
+            if (errEl) errEl.textContent = 'Your session expired. Please sign in again.';
+      }
+  }
+  
+  async function completeSignIn(token, user, newRefreshToken, expiresIn) {
   authToken  = token;
   currentUser = user;
+  if (newRefreshToken) refreshToken = newRefreshToken;
+  scheduleTokenRefresh(expiresIn);
   const roleRes = await fetch(
     `${SUPABASE_URL}/rest/v1/rpc/get_my_role`,
     { method: 'POST', headers: { ...getHeaders(), 'Content-Type': 'application/json' }, body: '{}' }
@@ -1537,7 +1570,7 @@ async function doLogin() {
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error_description || data.msg || 'Login failed');
-    await completeSignIn(data.access_token, data.user);
+    await completeSignIn(data.access_token, data.user, data.refresh_token, data.expires_in);
   } catch(e) {
     errEl.textContent = e.message;
   } finally {
@@ -1577,6 +1610,8 @@ async function doForgotPassword() {
 // Detects an incoming Supabase recovery link (#access_token=...&type=recovery)
 // and shows the "Set New Password" screen instead of the login form.
 let recoveryToken = null;
+  let recoveryRefreshToken = null;
+  let recoveryExpiresIn = null;
 (function checkForRecoveryLink() {
   const hash = window.location.hash;
   if (!hash || !hash.includes('type=recovery')) return;
@@ -1584,6 +1619,9 @@ let recoveryToken = null;
   const token = params.get('access_token');
   if (!token) return;
   recoveryToken = token;
+  recoveryRefreshToken = params.get('refresh_token');
+  const recExpIn = params.get('expires_in');
+  recoveryExpiresIn = recExpIn ? parseInt(recExpIn, 10) : null;
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('reset-screen').classList.remove('hidden');
   // Strip the token out of the visible URL so refresh/back doesn't resubmit it
@@ -1616,7 +1654,7 @@ async function doSetNewPassword() {
     if (!res.ok) throw new Error(data.error_description || data.msg || data.message || 'Could not set password.');
     const tok = recoveryToken;
     recoveryToken = null;
-    await completeSignIn(tok, data);
+    await completeSignIn(tok, data, recoveryRefreshToken, recoveryExpiresIn);
   } catch(e) {
     errEl.style.color = '#ef4444';
     errEl.textContent = e.message;
@@ -1626,7 +1664,7 @@ async function doSetNewPassword() {
 }
 
 function doLogout() {
-  authToken = null; currentRole = null; currentUser = null;
+  if (tokenRefreshTimer) { clearTimeout(tokenRefreshTimer); tokenRefreshTimer = null; } authToken = null; refreshToken = null; currentRole = null; currentUser = null;
   document.getElementById('login-email').value = '';
   document.getElementById('login-password').value = '';
   document.getElementById('login-error').textContent = '';
