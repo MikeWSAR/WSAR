@@ -3328,10 +3328,42 @@ function updateEmpCount() {
   if (el) el.textContent = `${checked} selected`;
 }
 
-async function toggleSubmittedField() { const el = document.getElementById('f-submitted'); if (!el) return; if (!currentCaseId || currentCaseId === '__new__') return; const isSubmitted = el.checked; const wasSubmitted = el.dataset.prevSubmitted === 'true'; const prevAt = el.dataset.prevAt || null; const submittedAt = isSubmitted ? (wasSubmitted && prevAt ? prevAt : new Date().toISOString()) : null; el.disabled = true; try { const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/case1?id=eq.${currentCaseId}`, { method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }, body: JSON.stringify({ submitted: isSubmitted, submitted_at: submittedAt, updated_at: new Date().toISOString() }) }); if (!patchRes.ok) throw new Error(await patchRes.text()); el.dataset.prevSubmitted = String(isSubmitted); el.dataset.prevAt = submittedAt || ''; const idx = allCases.findIndex(c => c.id === currentCaseId); if (idx > -1) allCases[idx] = { ...allCases[idx], submitted: isSubmitted, submitted_at: submittedAt }; renderCases(); renderDashboard(); if (isSubmitted && !wasSubmitted) { await fetch(`${SUPABASE_URL}/rest/v1/case_audit_log`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }, body: JSON.stringify({ id: crypto.randomUUID(), case_id: currentCaseId, case_number: document.getElementById('f-case-number')?.value.trim() || '', action: 'submitted', snapshot: { submitted: true, submitted_at: submittedAt }, changed_at: submittedAt, }), }); } } catch (err) { el.checked = wasSubmitted; alert('Failed to update Submitted status: ' + err.message); } finally { el.disabled = false; } } async function saveCaseDetail() {
+async function toggleSubmittedField() { const el = document.getElementById('f-submitted'); if (!el) return; if (!currentCaseId || currentCaseId === '__new__') return; const isSubmitted = el.checked; const wasSubmitted = el.dataset.prevSubmitted === 'true'; const prevAt = el.dataset.prevAt || null; const submittedAt = isSubmitted ? (wasSubmitted && prevAt ? prevAt : new Date().toISOString()) : null; el.disabled = true; try { const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/case1?id=eq.${currentCaseId}`, { method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }, body: JSON.stringify({ submitted: isSubmitted, submitted_at: submittedAt, updated_at: new Date().toISOString() }) }); if (!patchRes.ok) throw new Error(await patchRes.text()); el.dataset.prevSubmitted = String(isSubmitted); el.dataset.prevAt = submittedAt || ''; const idx = allCases.findIndex(c => c.id === currentCaseId); if (idx > -1) allCases[idx] = { ...allCases[idx], submitted: isSubmitted, submitted_at: submittedAt }; renderCases(); renderDashboard(); if (isSubmitted && !wasSubmitted) { await fetch(`${SUPABASE_URL}/rest/v1/case_audit_log`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }, body: JSON.stringify({ id: crypto.randomUUID(), case_id: currentCaseId, case_number: document.getElementById('f-case-number')?.value.trim() || '', action: 'submitted', snapshot: { submitted: true, submitted_at: submittedAt }, changed_at: submittedAt, }), }); } } catch (err) { el.checked = wasSubmitted; alert('Failed to update Submitted status: ' + err.message); } finally { el.disabled = false; } } function showSaveErrorBanner(message) {
+    let banner = document.getElementById('case-save-error-banner');
+    const modalBody = document.getElementById('modal-body');
+    if (!banner) {
+          banner = document.createElement('div');
+          banner.id = 'case-save-error-banner';
+          banner.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fee2e2;color:#991b1b;border:1px solid #ef4444;border-radius:6px;padding:10px 14px;margin-bottom:12px;font-size:14px;font-weight:600;';
+          const bannerText = document.createElement('span');
+          bannerText.id = 'case-save-error-banner-text';
+          const closeBtn = document.createElement('button');
+          closeBtn.type = 'button';
+          closeBtn.textContent = '✕';
+          closeBtn.style.cssText = 'background:none;border:none;color:#991b1b;font-size:16px;font-weight:700;cursor:pointer;line-height:1;';
+          closeBtn.onclick = hideSaveErrorBanner;
+          banner.appendChild(bannerText);
+          banner.appendChild(closeBtn);
+          if (modalBody) modalBody.prepend(banner);
+    }
+    const textEl = document.getElementById('case-save-error-banner-text');
+    if (textEl) textEl.textContent = '⚠ ' + message;
+    banner.style.display = 'flex';
+}
+
+  function hideSaveErrorBanner() {
+      const banner = document.getElementById('case-save-error-banner');
+      if (banner) banner.style.display = 'none';
+  }
+
+  async function saveCaseDetail() {
   if (!currentCaseId) return;
   const btns = document.querySelectorAll('.save-btn');
   btns.forEach(b => { b.disabled = true; b.textContent = 'Saving…'; });
+      hideSaveErrorBanner();
+
+      let __saveAttempt = 0;
+      while (true) {
 
   try {
     // GPS validation
@@ -3394,7 +3426,7 @@ async function toggleSubmittedField() { const el = document.getElementById('f-su
 
     if (isNew) {
       // POST new case
-      payload.id = crypto.randomUUID();
+      payload.id = payload.id || crypto.randomUUID();
       savedCaseId = payload.id;
       const postRes = await fetch(
         `${SUPABASE_URL}/rest/v1/case1`,
@@ -3485,10 +3517,16 @@ async function toggleSubmittedField() { const el = document.getElementById('f-su
     btns.forEach(b => { b.disabled = false; b.textContent = '💾 Save Changes'; });
     const msg = document.getElementById('save-msg');
     if (msg) { msg.style.display = 'inline'; setTimeout(() => { msg.style.display = 'none'; }, 3000); }
+          break;
 
   } catch(err) {
     btns.forEach(b => { b.disabled = false; b.textContent = '💾 Save Changes'; });
-    let __msg = err.message; try { const __p = JSON.parse(err.message); if (__p.code === '23505' && (__p.message||'').includes('case1_case_number_unique')) { __msg = `Case number "${document.getElementById('f-case-number')?.value.trim()}" already exists. Please use a different case number.`; } else if (__p.message) { __msg = __p.message; } } catch(_e) {} alert('Save failed: ' + __msg);
+    __saveAttempt++;
+        if (__saveAttempt < 2) { await new Promise(r => setTimeout(r, 1200)); continue; }
+        let __msg = err.message; try { const __p = JSON.parse(err.message); if (__p.code === '23505' && (__p.message||'').includes('case1_case_number_unique')) { __msg = `Case number "${document.getElementById('f-case-number')?.value.trim()}" already exists. Please use a different case number.`; } else if (__p.message) { __msg = __p.message; } } catch(_e) {}
+        showSaveErrorBanner('Save failed: ' + __msg);
+        return;
+  }
   }
 }
 
