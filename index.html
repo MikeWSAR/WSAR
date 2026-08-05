@@ -3994,9 +3994,9 @@ async function generateMemberActivityReport() {
 
     const stats = [
       { label: 'Search+Medicals',   m: count(memberRows, isS), desc: 'Medical and Search Pages' },
-      { label: 'Regular Training', m: count(memberRows, isT), desc: 'Regular trainings. Extra and Core trainings excluded' },
+      { label: 'Regular Training', m: count(memberRows, isT), desc: 'Reg Trainings(2nd Thursday and 3rd Sat). Extra and Core training excluded' },
       { label: 'Total Events', m: count(memberRows, isAll), noPct: true, desc: 'Medical + Search + Reg Train + Extra Training' },
-      { label: 'Total Eligible Cases', m: count(memberRows, isElig), desc: 'Eligible=Call outs + Reg training divided by all events member attended (Including TE)', bold: true, hideDenominator: true },
+      { label: 'Total Eligible Cases', m: count(memberRows, isElig), desc: 'Eligible=Call outs + Reg training divided by all events member attended (Including TE)', bold: true },
     ];
     const teamStats = [
       count(teamRows, isS), count(teamRows, isT), count(teamRows, isAll), count(teamRows, isElig)
@@ -4008,7 +4008,7 @@ async function generateMemberActivityReport() {
       label: 'Extra Training TE',
       m: count(memberRows, isTE),
       soloCount: true,
-      desc: 'TE = training not required by whole team. Special teams, etc'
+      desc: 'TE = training not required by whole team. Special teams, Rookie training, etc'
     });
 
     // Core Training row — pulled from the Core Training tracker (not case1 TC entries)
