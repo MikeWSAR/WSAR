@@ -3421,6 +3421,42 @@ async function toggleSubmittedField() { const el = document.getElementById('f-su
 
     const checkedIds = [...document.querySelectorAll('input[name="emp"]:checked')].map(i => i.value);
 
+        // Soft duplicate guard: warn (don't block) if another case shares the same
+        // date, location, and exact set of responding members. Catches the same
+        // incident being re-entered under a different case number, which the
+        // case_number uniqueness check alone can't detect.
+        try {
+                const dupCandidates = allCases.filter(c =>
+                          c.id !== currentCaseId &&
+                          c.date === payload.date &&
+                          (c.location || '').trim().toLowerCase() === (payload.location || '').trim().toLowerCase()
+                        );
+                if (dupCandidates.length && checkedIds.length) {
+                          const dupIds = dupCandidates.map(c => c.id);
+                          const dupRes = await fetch(
+                                      `${SUPABASE_URL}/rest/v1/case1_employees?select=employee_id,case_id&case_id=in.(${dupIds.join(',')})`,
+                            { headers }
+                                    );
+                          const dupRows = dupRes.ok ? await dupRes.json() : [];
+                          const dupByCase = {};
+                          dupRows.forEach(r => { (dupByCase[r.case_id] = dupByCase[r.case_id] || []).push(r.employee_id); });
+                          const checkedSet = new Set(checkedIds);
+                          const dupMatch = dupCandidates.find(c => {
+                                      const ids = dupByCase[c.id] || [];
+                                      return ids.length === checkedSet.size && ids.every(id => checkedSet.has(id));
+                          });
+                          if (dupMatch) {
+                                      const proceedAnyway = confirm(`This looks like a duplicate of case #${dupMatch.case_number} — same date, location, and responding members.\n\nSave anyway?`);
+                                      if (!proceedAnyway) {
+                                                    btns.forEach(b => { b.disabled = false; b.textContent = '💾 Save Changes'; });
+                                                    return;
+                                      }
+                          }
+                }
+        } catch (dupErr) {
+                console.error('Duplicate-case check failed, continuing with save:', dupErr);
+        }
+
     const isNew = currentCaseId === '__new__';
     let savedCaseId = currentCaseId;
 
