@@ -3996,7 +3996,7 @@ async function generateMemberActivityReport() {
       { label: 'Search+Medicals',   m: count(memberRows, isS), desc: 'Medical and Search Pages' },
       { label: 'Regular Training', m: count(memberRows, isT), desc: 'Reg Trainings(2nd Thursday and 3rd Sat). Extra and Core training excluded' },
       { label: 'Total Events', m: count(memberRows, isAll), noPct: true, desc: 'Medical + Search + Reg Train + Extra Training' },
-      { label: 'Total Eligible Cases', m: count(memberRows, isElig), desc: 'Eligible=Call outs + Reg training divided by all events member attended (Including TE)', bold: true },
+      { label: 'Total Eligible Cases', m: count(memberRows, isElig), desc: 'Eligible = Med + Search + Reg Train + Extra Train / Total events', bold: true },
     ];
     const teamStats = [
       count(teamRows, isS), count(teamRows, isT), count(teamRows, isAll), count(teamRows, isElig)
@@ -4021,6 +4021,9 @@ async function generateMemberActivityReport() {
       : '';
     stats.push({ label: 'Core Training', m: coreComplete, t: coreEligible, pct: corePct, desc: coreDesc });
 
+        const teamAvgEligPct = teamStats[2] > 0 ? Math.round(teamStats[3] / teamStats[2] * 100) : 0;
+        stats.push({ label: 'Team Ave Eligible Cases', m: '', pct: teamAvgEligPct, noCount: true, desc: 'Team-wide eligible rate across all logged events' });
+
     const sortedRows = [...teamRows]
       .sort((a, b) => (b.date||'').localeCompare(a.date||''))
       .map(c => ({ ...c, _attended: empCaseIds.has(c.id) }));
@@ -4042,7 +4045,7 @@ async function generateMemberActivityReport() {
           <thead><tr><th></th><th>Count</th><th>% of Totals</th><th>Description</th></tr></thead>
           <tbody>
             ${stats.map(s => {
-              const isEligRow = s.label === 'Total Eligible Cases';
+              const isEligRow = s.label === 'Total Eligible Cases' || s.label === 'Team Ave Eligible Cases';
               const good = s.pct >= 40;
               const hl = isEligRow ? (good ? '#dcfce7' : '#fef9c3') : '';
               const border = isEligRow ? (good ? '#86efac' : '#fde047') : '';
@@ -4051,7 +4054,7 @@ async function generateMemberActivityReport() {
                 ? `<span style="display:inline-block;padding:2px 14px;border-radius:999px;background:${hl};border:1px solid ${border}">${pctText}</span>`
                 : pctText);
               const labelCell = hl ? `<span style="display:inline-block;padding:2px 10px;border-radius:4px;background:${hl}">${s.label}</span>` : s.label;
-              const countText = (s.soloCount || s.hideDenominator) ? `${s.m}` : `${s.m} / ${s.t}`;
+              const countText = s.noCount ? '—' : ((s.soloCount || s.hideDenominator) ? `${s.m}` : `${s.m} / ${s.t}`);
               const countCell = hl ? `<span style="display:inline-block;padding:2px 10px;border-radius:4px;background:${hl}">${countText}</span>` : countText;
               return `<tr><td>${labelCell}</td><td class="muted">${countCell}</td><td class="muted">${pctCell}</td><td class="muted">${s.desc || '—'}</td></tr>`;
             }).join('')}
