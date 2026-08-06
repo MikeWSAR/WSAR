@@ -4026,7 +4026,7 @@ async function generateMemberActivityReport() {
       { label: 'Search+Medicals',   m: count(memberRows, isS), desc: 'Medical and Search Pages' },
       { label: 'Regular Training', m: count(memberRows, isT), desc: 'Reg Trainings(2nd Thursday and 3rd Sat). Extra and Core training excluded' },
       { label: 'Total Events', m: count(memberRows, isAll), noPct: true, desc: 'Medical + Search + Reg Train + Extra Training' },
-      { label: 'Total Eligible Cases', m: count(memberRows, isElig), desc: 'Eligible = Med + Search + Reg Train + Extra Train / Total events', bold: true },
+      { label: 'Total Eligible Cases', m: count(memberRows, isElig), desc: 'Eligible = Med + Search + Reg Train + Extra Train / Total Eligible Cases', bold: true },
     ];
     const teamStats = [
       count(teamRows, isS), count(teamRows, isT), count(teamRows, isAll), count(teamRows, isElig)
@@ -4051,8 +4051,76 @@ async function generateMemberActivityReport() {
       : '';
     stats.push({ label: 'Core Training', m: coreComplete, t: coreEligible, pct: corePct, desc: coreDesc });
 
-        const teamAvgEligPct = teamStats[2] > 0 ? Math.round(teamStats[3] / teamStats[2] * 100) : 0;
-        stats.push({ label: 'Team Ave Eligible Cases', m: '', pct: teamAvgEligPct, noCount: true, desc: 'Team-wide eligible rate across all logged events' });
+        // Team Ave Eligible Cases -- true mean of each member's own eligible %, with 120-day
+        // rookie window (matches Dashboard's Team Average and Reporting's Team Ave with Rookie).
+        // Requires a fresh team-wide participation fetch since empCaseIds above only covers this member.
+        const teamCaseTypeMap = {};
+        teamRows.forEach(c => { teamCaseTypeMap[c.id] = c.case_type; });
+        const teamEmpData = {};
+        const teamCeRawRows = [];
+        try {
+                const teamCaseIds = teamRows.map(c => c.id);
+                for (let i = 0; i < teamCaseIds.length; i += 60) {
+                          const chunk = teamCaseIds.slice(i, i + 60);
+                          const tr = await fetch(
+                                      `${SUPABASE_URL}/rest/v1/case1_employees?select=employee_id,case_id&case_id=in.(${chunk.join(',')})`,
+                            { headers: { ...headers, 'Range': '0-9999' } }
+                                    );
+                          const trData = await tr.json();
+                          if (Array.isArray(trData)) {
+                                      teamCeRawRows.push(...trData);
+                                      trData.forEach(row => {
+                                                    const ct = teamCaseTypeMap[row.case_id];
+                                                    if (!['S','T','TE'].includes(ct)) return;
+                                                    if (!teamEmpData[row.employee_id]) teamEmpData[row.employee_id] = { all: 0 };
+                                                    teamEmpData[row.employee_id].all++;
+                                      });
+                          }
+                }
+        } catch (teamErr) { console.warn('Team participation fetch failed:', teamErr); }
+
+        const fromDate = new Date(from + 'T00:00:00');
+        const toDate = new Date(to + 'T00:00:00');
+        const totalEligible = teamStats[3];
+        const teamMembers = allEmployees.filter(e => ['Active','Rookie'].includes(e.status));
+        const meanPcts = [];
+        teamMembers.forEach(e => {
+                if (e.status === 'Active') {
+                          const d = teamEmpData[e.id] || { all: 0 };
+                          meanPcts.push(totalEligible > 0 ? Math.round(d.all / totalEligible * 100) : 0);
+                          return;
+                }
+                if (!e.hire_date) return;
+                const hireDate = new Date(e.hire_date);
+                const rookieStart = new Date(hireDate);
+                rookieStart.setDate(rookieStart.getDate() + 120);
+                if (rookieStart > toDate) return;
+                if (rookieStart <= fromDate) {
+                          const d = teamEmpData[e.id] || { all: 0 };
+                          meanPcts.push(totalEligible > 0 ? Math.round(d.all / totalEligible * 100) : 0);
+                          return;
+                }
+                const rookieStartStr = rookieStart.toISOString().slice(0, 10);
+                const subCaseIds = new Set();
+                let subEligible = 0;
+                teamRows.forEach(c => {
+                          if (c.date >= rookieStartStr) {
+                                      subCaseIds.add(c.id);
+                                      if (['S','T'].includes(c.case_type)) subEligible++;
+                          }
+                });
+                if (subEligible === 0) return;
+                const rookieSubAll = teamCeRawRows.filter(row =>
+                          row.employee_id === e.id &&
+                          subCaseIds.has(row.case_id) &&
+                          ['S','T','TE'].includes(teamCaseTypeMap[row.case_id])
+                        ).length;
+                meanPcts.push(Math.round(rookieSubAll / subEligible * 100));
+        });
+        const teamAvgEligPct = meanPcts.length
+          ? Math.round(meanPcts.reduce((a, b) => a + b, 0) / meanPcts.length)
+                : 0;
+        stats.push({ label: 'Team Ave Eligible Cases', m: totalEligible, soloCount: true, pct: teamAvgEligPct, desc: 'Team-wide eligible rate across all logged events' });
 
     const sortedRows = [...teamRows]
       .sort((a, b) => (b.date||'').localeCompare(a.date||''))
