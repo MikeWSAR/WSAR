@@ -898,7 +898,7 @@
           <div class="rep-stat-box rep-stat-tooltip-wrap">
             <div class="rsl">Team Ave with Rookie <span class="info-icon">ⓘ</span></div>
             <div class="rsv" id="rep-team-median">—</div>
-            <div class="rep-stat-tooltip">Middle value of all member Eligible % (Active + Rookie)</div>
+            <div class="rep-stat-tooltip">Average of all member Eligible % (Active + Rookie)</div>
           </div>
         </div>
         <button class="action-btn" onclick="exportReporting()">⬇ Export</button>
@@ -2170,15 +2170,11 @@ async function loadReporting() {
       medianPcts.push(Math.round(rookieSubAll / subEligible * 100));
     });
 
-    medianPcts.sort((a, b) => a - b);
     let median = 0;
-    if (medianPcts.length) {
-      const mid = Math.floor(medianPcts.length / 2);
-      median = medianPcts.length % 2 !== 0
-        ? medianPcts[mid]
-        : Math.round((medianPcts[mid - 1] + medianPcts[mid]) / 2);
-    }
-    document.getElementById('rep-team-median').textContent = median + '%';
+        if (medianPcts.length) {
+                median = Math.round(medianPcts.reduce((a, b) => a + b, 0) / medianPcts.length);
+        }
+        document.getElementById('rep-team-median').textContent = median + '%';
 
     renderRepRows();
   } catch(e) {
