@@ -4136,7 +4136,14 @@ async function generateMemberActivityReport() {
         <div class="detail-field">
           <div class="detail-label">Member</div>
           <div>${emp.last_name}, ${emp.first_name}</div>
-        </div>
+                  </div>
+                          <div class="detail-field">
+                                    <div class="detail-label">Team Ave with Rookie</div>
+                                              <div class="rep-stat-box rep-stat-tooltip-wrap" style="margin-top:4px;display:inline-block">
+                                                          <div class="rsv">${teamAvgEligPct}%</div>
+                                                                      <div class="rep-stat-tooltip">Team-wide mean of member eligible % (Active + Rookie, 120-day window) -- matches Reporting</div>
+                                                                                </div>
+                                                                                        </div>
       </div>
       <div class="table-wrap" style="margin-bottom:24px">
         <table>
