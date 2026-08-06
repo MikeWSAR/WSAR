@@ -4025,13 +4025,16 @@ async function generateMemberActivityReport() {
     const stats = [
       { label: 'Search+Medicals',   m: count(memberRows, isS), desc: 'Medical and Search Pages' },
       { label: 'Regular Training', m: count(memberRows, isT), desc: 'Reg Trainings(2nd Thursday and 3rd Sat). Extra and Core training excluded' },
-      { label: 'Total Events', m: count(memberRows, isAll), noPct: true, desc: 'Medical + Search + Reg Train + Extra Training' },
+      { label: 'Member Events', m: count(memberRows, isAll), noPct: true, soloCount: true, desc: 'Medical + Search + Reg Train + Extra Training' },
       { label: 'Total Eligible Cases', m: count(memberRows, isElig), desc: 'Eligible = Med + Search + Reg Train + Extra Train / Med + Search + Reg Train', bold: true },
     ];
     const teamStats = [
       count(teamRows, isS), count(teamRows, isT), count(teamRows, isAll), count(teamRows, isElig)
     ];
     stats.forEach((s, i) => { s.t = teamStats[i]; s.pct = pct(s.m, teamStats[i]); });
+        // Total Eligible Cases % should reflect member's Total Events over team's Total Eligible Cases
+        const eligStat = stats.find(s => s.label === 'Total Eligible Cases');
+        if (eligStat) eligStat.pct = pct(count(memberRows, isAll), eligStat.t);
 
     // Extra Training (TE) — member count only, no team total or % (per member-only stat)
     stats.splice(2, 0, {
