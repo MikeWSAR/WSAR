@@ -4137,13 +4137,6 @@ async function generateMemberActivityReport() {
           <div class="detail-label">Member</div>
           <div>${emp.last_name}, ${emp.first_name}</div>
                   </div>
-                          <div class="detail-field">
-                                    <div class="detail-label">Team Ave with Rookie</div>
-                                              <div class="rep-stat-box rep-stat-tooltip-wrap" style="margin-top:4px;display:inline-block">
-                                                          <div class="rsv">${teamAvgEligPct}%</div>
-                                                                      <div class="rep-stat-tooltip">Team-wide mean of member eligible % (Active + Rookie, 120-day window) -- matches Reporting</div>
-                                                                                </div>
-                                                                                        </div>
       </div>
       <div class="table-wrap" style="margin-bottom:24px">
         <table>
@@ -4152,8 +4145,9 @@ async function generateMemberActivityReport() {
             ${stats.map(s => {
               const isEligRow = s.label === 'Total Eligible Cases' || s.label === 'Team Ave Eligible Cases';
               const good = s.pct >= 40;
-              const hl = isEligRow ? (good ? '#dcfce7' : '#fef9c3') : '';
-              const border = isEligRow ? (good ? '#86efac' : '#fde047') : '';
+              const isTeamAveRow = s.label === 'Team Ave Eligible Cases';
+                            const hl = isTeamAveRow ? '#dbeafe' : (isEligRow ? (good ? '#dcfce7' : '#fef9c3') : '');
+                            const border = isTeamAveRow ? '#93c5fd' : (isEligRow ? (good ? '#86efac' : '#fde047') : '');
               const pctText = s.bold ? `<strong>${s.pct}%</strong>` : s.pct + '%';
               const pctCell = (s.noPct || (s.soloCount && !isEligRow)) ? '' : (isEligRow
                 ? `<span style="display:inline-block;padding:2px 14px;border-radius:999px;background:${hl};border:1px solid ${border}">${pctText}</span>`
