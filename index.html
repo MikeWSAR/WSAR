@@ -4196,7 +4196,7 @@ function exportMemberActivity(type) {
   if (!maReportData) return;
   const { emp, from, to, stats, rows } = maReportData;
   const statsHeaders = ['', 'Count', '% of Totals', 'Description'];
-  const statsData = stats.map(s => [s.label, s.soloCount ? `${s.m}` : `${s.m} / ${s.t}`, (s.soloCount || s.noPct) ? '' : s.pct + '%', s.desc || '']);
+  const statsData = stats.map(s => [s.label, s.soloCount ? `${s.m}` : `${s.m} / ${s.t}`, (s.noPct || (s.soloCount && s.label !== 'Team Ave Eligible Cases')) ? '' : s.pct + '%', s.desc || '']);
   const rowHeaders = ['Date','Day','Category','Type','Responding','Call No','Location','Notes'];
   const rowData = rows.map(c => [
     fmt(c.date), maDayOfWeek(c.date), c.case_cat || '', c.case_type || '',
@@ -4220,11 +4220,12 @@ function exportMemberActivity(type) {
   } else {
     const statsRows = statsData.map((r, i) => {
       const s = stats[i];
-      const isEligRow = s.label === 'Total Eligible Cases';
-      const good = s.pct >= 40;
-      const hl = isEligRow ? (good ? '#dcfce7' : '#fef9c3') : '';
-      const border = isEligRow ? (good ? '#86efac' : '#fde047') : '';
-      const pctText = s.bold ? `<strong>${r[2]}</strong>` : r[2];
+      const isEligRow = s.label === 'Total Eligible Cases' || s.label === 'Team Ave Eligible Cases';
+            const isTeamAveRow = s.label === 'Team Ave Eligible Cases';
+            const good = s.pct >= 40;
+            const hl = isTeamAveRow ? '#dbeafe' : (isEligRow ? (good ? '#dcfce7' : '#fef9c3') : '');
+            const border = isTeamAveRow ? '#93c5fd' : (isEligRow ? (good ? '#86efac' : '#fde047') : '');
+            const pctText = s.bold ? `<strong>${r[2]}</strong>` : r[2];
       const pctCell = isEligRow
         ? `<span style="display:inline-block;padding:2px 14px;border-radius:999px;background:${hl};border:1px solid ${border}">${pctText}</span>`
         : pctText;
