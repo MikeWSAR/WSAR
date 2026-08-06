@@ -1865,6 +1865,7 @@ async function renderDashboard() {
   // --- Fetch member participation for TTM ---
   // empData[employee_id] = { all: 0 }  (all = S+T+TE attended, TC excluded)
   let empData = {}; // { employee_id: { all } }
+    const ceRawRows = []; // raw employee-case pairs, needed for rookie 120-day window recalculation
   try {
     if (ttmCases.length > 0) {
       const ids = ttmCases.map(c => c.id);
@@ -1877,7 +1878,8 @@ async function renderDashboard() {
         const data = await res.json();
         if (Array.isArray(data)) {
           data.forEach(r => {
-            const ct = ttmCaseTypeMap[r.case_id];
+            ceRawRows.push(r);
+                        const ct = ttmCaseTypeMap[r.case_id];
             if (!['S','T','TE'].includes(ct)) return;
             if (!empData[r.employee_id]) empData[r.employee_id] = { all: 0 };
             empData[r.employee_id].all++;
@@ -1887,17 +1889,49 @@ async function renderDashboard() {
     }
   } catch(e) { console.warn('Participation fetch failed:', e); }
 
-  // --- Team Mean Average (mirrors Reporting: mean of member allPct = all / totalEligible) ---
-  if (totalEligible > 0 && activeEmps.length > 0) {
-    const pcts = activeEmps.map(e => {
-      const d = empData[e.id] || { all: 0 };
-      return Math.round(d.all / totalEligible * 100);
+  // --- Team Mean Average (matches Reporting: mean of member allPct, with 120-day rookie window) ---
+    // Active -> full-period pct. Rookie -> only counted once 120 days post-hire; if they
+    // crossed that threshold mid-period, recalculate their pct over the eligible sub-period.
+    const meanPcts = [];
+    activeEmps.forEach(e => {
+      if (e.status === 'Active') {
+              const d = empData[e.id] || { all: 0 };
+              meanPcts.push(totalEligible > 0 ? Math.round(d.all / totalEligible * 100) : 0);
+              return;
+      }
+          if (!e.hire_date) return;
+          const hireDate = new Date(e.hire_date);
+          const rookieStart = new Date(hireDate);
+          rookieStart.setDate(rookieStart.getDate() + 120);
+          if (rookieStart > endDate) return;
+          if (rookieStart <= startDate) {
+                  const d = empData[e.id] || { all: 0 };
+                  meanPcts.push(totalEligible > 0 ? Math.round(d.all / totalEligible * 100) : 0);
+                  return;
+          }
+          const rookieStartStr = rookieStart.toISOString().slice(0, 10);
+          const subCaseIds = new Set();
+          let subEligible = 0;
+          ttmCases.forEach(c => {
+                  if (c.date >= rookieStartStr) {
+                            subCaseIds.add(c.id);
+                            if (['S','T'].includes(c.case_type)) subEligible++;
+                  }
+          });
+          if (subEligible === 0) return;
+          const rookieSubAll = ceRawRows.filter(row =>
+                  row.employee_id === e.id &&
+                  subCaseIds.has(row.case_id) &&
+                  ['S','T','TE'].includes(ttmCaseTypeMap[row.case_id])
+                ).length;
+          meanPcts.push(Math.round(rookieSubAll / subEligible * 100));
     });
-    const avg = Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length);
-    document.getElementById('s-mean-avg').textContent = avg + '%';
-  } else {
-    document.getElementById('s-mean-avg').textContent = '—';
-  }
+    if (meanPcts.length) {
+          const avg = Math.round(meanPcts.reduce((a, b) => a + b, 0) / meanPcts.length);
+          document.getElementById('s-mean-avg').textContent = avg + '%';
+    } else {
+          document.getElementById('s-mean-avg').textContent = '—';
+    }
 
   // --- Team Ave w/o Rookie: status = 'Active' only (excludes Rookie and Admin) ---
   const activeOnlyEmps = allEmployees.filter(e => e.status === 'Active');
