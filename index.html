@@ -881,11 +881,6 @@
             <div class="rep-stat-tooltip">Total Training is Type = T only. Core Training TC and Extra Training TE are not included.</div>
           </div>
           <div class="rep-stat-box rep-stat-tooltip-wrap">
-            <div class="rsl">Total Cases <span class="info-icon">ⓘ</span></div>
-            <div class="rsv" id="rep-total-cases">—</div>
-            <div class="rep-stat-tooltip">Total Cases is Type = S + T + TE. Core Training TC is not included.</div>
-          </div>
-          <div class="rep-stat-box rep-stat-tooltip-wrap">
             <div class="rsl">Total Eligible Cases <span class="info-icon">ⓘ</span></div>
             <div class="rsv" id="rep-total-eligible">—</div>
             <div class="rep-stat-tooltip">Eligible is Type = S + T. Core Training TC is not included.</div>
@@ -2081,7 +2076,6 @@ async function loadReporting() {
 
     document.getElementById('rep-total-searches').textContent = totalSearches;
     document.getElementById('rep-total-training').textContent = totalTraining;
-    document.getElementById('rep-total-cases').textContent    = totalCases;
     document.getElementById('rep-total-eligible').textContent = totalEligible;
 
     // 2. Build case lookup map
