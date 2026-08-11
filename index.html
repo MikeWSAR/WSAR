@@ -926,11 +926,8 @@
               <th class="sortable" data-col="first_name">First Name <span class="sort-arrow">↕</span></th>
               <th>Team Eligible</th>
               <th class="sortable" data-col="all" style="position:relative;">
-                All <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Member Total Type = S+T+TE (TC not included)</span></span>
-              </th>
-              <th class="sortable" data-col="eligible" style="position:relative;">
-                Eligible <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Member Eligible is Type = S+T (TC not included)</span></span>
-              </th>
+                Member <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Member Total Type = S+T+TE (TC not included)</span></span>
+  </th>
               <th class="sortable" data-col="allPct" style="position:relative;">
                 Eligible % <span class="sort-arrow">↕</span> <span class="info-icon col-tip-trigger">ⓘ<span class="col-tip">Member All divided by Team Eligible</span></span>
               </th>
@@ -945,8 +942,7 @@
               <th class="sortable" data-col="trainExt">Train Ext <span class="sort-arrow">↕</span></th>
             </tr></thead>
             <tbody id="rep-tbody">
-              <tr><td colspan="11"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td></tr>
-            </tbody>
+<tr><td colspan="10"><div class="loader-wrap"><div class="spinner"></div><br>Loading…</div></td>></tr>            </tbody>
           </table>
         </div>
       </div>
@@ -2260,7 +2256,6 @@ function renderRepRows() {
           <td>${r.e.first_name||'—'}</td>
           <td class="muted">${repTotals.totalEligible}</td>
           <td class="rep-all">${lk('', 'All', r.all)}</td>
-          <td class="muted">${r.eligible}</td>
           <td class="muted">${r.allPct}%</td>
           <td class="rep-type-count">${lk('S', 'Searches', r.searches)}</td>
           <td class="muted">${r.searchPct}%</td>
