@@ -4018,16 +4018,18 @@ async function generateMemberActivityReport() {
     const stats = [
       { label: 'Search+Medicals',   m: count(memberRows, isS), desc: 'Medical and Search Pages' },
       { label: 'Regular Training', m: count(memberRows, isT), desc: 'Reg Trainings(2nd Thursday and 3rd Sat). Extra and Core training excluded' },
-      { label: 'Member Events', m: count(memberRows, isAll), noPct: true, soloCount: true, desc: 'Medical + Search + Reg Train + Extra Training' },
-      { label: 'Total Eligible Cases', m: count(memberRows, isElig), desc: 'Eligible = Med + Search + Reg Train + Extra Train / Med + Search + Reg Train', bold: true },
-    ];
-    const teamStats = [
-      count(teamRows, isS), count(teamRows, isT), count(teamRows, isAll), count(teamRows, isElig)
-    ];
-    stats.forEach((s, i) => { s.t = teamStats[i]; s.pct = pct(s.m, teamStats[i]); });
-        // Total Eligible Cases % should reflect member's Total Events over team's Total Eligible Cases
-        const eligStat = stats.find(s => s.label === 'Total Eligible Cases');
-        if (eligStat) eligStat.pct = pct(count(memberRows, isAll), eligStat.t);
+      { label: 'Member Events', m: count(memberRows, isAll), soloCount: true, pillPct: true, desc: 'Medical + Search + Reg Train + Extra Training' },
+      { label: 'Total Team Eligible Events', m: count(memberRows, isElig), desc: 'Eligible = Med + Search + Reg Train + Extra Train / Med + Search + Reg Train', bold: true, noPct: true, showTeamOnly: true },
+            ];
+          const teamStats = [
+                    count(teamRows, isS), count(teamRows, isT), count(teamRows, isAll), count(teamRows, isElig)
+                  ];
+          stats.forEach((s, i) => { s.t = teamStats[i]; s.pct = pct(s.m, teamStats[i]); });
+                // Total Team Eligible Events % should reflect member's Total Events over team's Total Eligible Cases
+                const eligStat = stats.find(s => s.label === 'Total Team Eligible Events');
+                if (eligStat) eligStat.pct = pct(count(memberRows, isAll), eligStat.t);
+                const memberEventsStat = stats.find(s => s.label === 'Member Events');
+                if (eligStat && memberEventsStat) memberEventsStat.pct = eligStat.pct;
 
     // Extra Training (TE) — member count only, no team total or % (per member-only stat)
     stats.splice(2, 0, {
@@ -4139,18 +4141,21 @@ async function generateMemberActivityReport() {
           <thead><tr><th></th><th>Count</th><th>% of Totals</th><th>Description</th></tr></thead>
           <tbody>
             ${stats.map(s => {
-              const isEligRow = s.label === 'Total Eligible Cases' || s.label === 'Team Ave Eligible Cases';
-              const good = s.pct >= 40;
-              const isTeamAveRow = s.label === 'Team Ave Eligible Cases';
-                            const hl = isTeamAveRow ? '#dbeafe' : (isEligRow ? (good ? '#dcfce7' : '#fef9c3') : '');
-                            const border = isTeamAveRow ? '#93c5fd' : (isEligRow ? (good ? '#86efac' : '#fde047') : '');
-              const pctText = s.bold ? `<strong>${s.pct}%</strong>` : s.pct + '%';
-              const pctCell = (s.noPct || (s.soloCount && !isEligRow)) ? '' : (isEligRow
-                ? `<span style="display:inline-block;padding:2px 14px;border-radius:999px;background:${hl};border:1px solid ${border}">${pctText}</span>`
-                : pctText);
-              const labelCell = hl ? `<span style="display:inline-block;padding:2px 10px;border-radius:4px;background:${hl}">${s.label}</span>` : s.label;
-              const countText = s.noCount ? '—' : ((s.soloCount || s.hideDenominator) ? `${s.m}` : `${s.m} / ${s.t}`);
-              const countCell = hl ? `<span style="display:inline-block;padding:2px 10px;border-radius:4px;background:${hl}">${countText}</span>` : countText;
+                      const isEligRow = s.label === 'Total Team Eligible Events' || s.label === 'Team Ave Eligible Cases';
+                      const good = s.pct >= 40;
+                      const isTeamAveRow = s.label === 'Team Ave Eligible Cases';
+                      const hl = isTeamAveRow ? '#dbeafe' : (isEligRow ? (good ? '#dcfce7' : '#fef9c3') : '');
+                      const border = isTeamAveRow ? '#93c5fd' : (isEligRow ? (good ? '#86efac' : '#fde047') : '');
+                      const pctText = s.bold ? `<strong>${s.pct}%</strong>` : s.pct + '%';
+                      const showPillPct = isEligRow || s.pillPct;
+                      const pillBg = isEligRow ? hl : (good ? '#dcfce7' : '#fef9c3');
+                      const pillBorder = isEligRow ? border : (good ? '#86efac' : '#fde047');
+                      const pctCell = (s.noPct || (s.soloCount && !showPillPct)) ? '' : (showPillPct
+                                                                                                   ? `<span style="display:inline-block;padding:2px 14px;border-radius:999px;background:${pillBg};border:1px solid ${pillBorder}">${pctText}</span>`
+                                                                                                   : pctText);
+                      const labelCell = hl ? `<span style="display:inline-block;padding:2px 10px;border-radius:4px;background:${hl}">${s.label}</span>` : s.label;
+                      const countText = s.noCount ? '—' : (s.showTeamOnly ? `${s.t}` : ((s.soloCount || s.hideDenominator) ? `${s.m}` : `${s.m} / ${s.t}`));
+                      const countCell = hl ? `<span style="display:inline-block;padding:2px 10px;border-radius:4px;background:${hl}">${countText}</span>` : countText;
               return `<tr><td>${labelCell}</td><td class="muted">${countCell}</td><td class="muted">${pctCell}</td><td class="muted">${s.desc || '—'}</td></tr>`;
             }).join('')}
           </tbody>
@@ -4216,7 +4221,7 @@ function exportMemberActivity(type) {
   } else {
     const statsRows = statsData.map((r, i) => {
       const s = stats[i];
-      const isEligRow = s.label === 'Total Eligible Cases' || s.label === 'Team Ave Eligible Cases';
+      const isEligRow = s.label === 'Total Team Eligible Events' || s.label === 'Team Ave Eligible Cases';
             const isTeamAveRow = s.label === 'Team Ave Eligible Cases';
             const good = s.pct >= 40;
             const hl = isTeamAveRow ? '#dbeafe' : (isEligRow ? (good ? '#dcfce7' : '#fef9c3') : '');
