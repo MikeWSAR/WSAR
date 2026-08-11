@@ -1041,6 +1041,7 @@
             <option value="T">T – Training</option>
             <option value="TC">TC</option>
             <option value="TE">TE</option>
+            <option value="TR">TR – Training Rookie</option>
             <option value="O">O – Other</option>
             <option value="NA">NA</option>
           </select>
@@ -1773,7 +1774,7 @@ function catBadge(cat) {
   return `<span class="pill ${m[cat]||'badge-gray'}">${cat||'—'}</span>`;
 }
 function typeBadge(t) {
-  const m = { S:'badge-blue', T:'badge-green', TC:'badge-purple', TE:'badge-amber', O:'badge-gray', NA:'badge-gray' };
+  const m = { S:'badge-blue', T:'badge-green', TC:'badge-purple', TE:'badge-amber', TR:'badge-red', O:'badge-gray', NA:'badge-gray' };
   return t ? `<span class="pill ${m[t]||'badge-gray'}">${t}</span>` : '<span class="muted">—</span>';
 }
 function statusBadge(s) {
@@ -3132,7 +3133,7 @@ async function openAddCase() {
         <select class="modal-input" id="f-case-type">
           <option value="">— Select —</option>
           <option value="S">S – Search</option><option value="T">T – Training</option>
-          <option value="TC">TC – Training Core</option><option value="TE">TE – Training Extra</option>
+          <option value="TC">TC – Training Core</option><option value="TE">TE – Training Extra</option><option value="TR">TR – Training Rookie</option>
           <option value="O">O – Other</option><option value="NA">NA</option>
         </select>
       </div>
@@ -3277,6 +3278,7 @@ async function openCaseDetail(caseId) {
             <option value="T"  ${c.case_type==='T'  ?'selected':''}>T – Training</option>
             <option value="TC" ${c.case_type==='TC' ?'selected':''}>TC – Training Core</option>
             <option value="TE" ${c.case_type==='TE' ?'selected':''}>TE – Training Extra</option>
+            <option value="TR" ${c.case_type==='TR' ?'selected':''}>TR – Training Rookie</option>
             <option value="O"  ${c.case_type==='O'  ?'selected':''}>O – Other</option>
             <option value="NA" ${c.case_type==='NA' ?'selected':''}>NA</option>
           </select>
