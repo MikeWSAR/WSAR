@@ -1164,7 +1164,7 @@
   <div class="modal" style="max-width:520px;width:95vw">
     <div class="modal-header">
       <div class="modal-case-num" id="mp-title" style="font-size:16px;font-weight:700"></div>
-      <button class="modal-close" onclick="document.getElementById('member-profile-modal').classList.remove('open')">✕</button>
+      <div class="modal-header-actions"><button class="action-btn admin-only" id="mp-edit-btn" onclick="startEditMember()">Edit</button><button class="modal-close" onclick="document.getElementById('member-profile-modal').classList.remove('open')">✕</button></div>
     </div>
     <div class="modal-body" id="mp-body"></div>
   </div>
@@ -2496,8 +2496,8 @@ function renderCases() {
 }
 
 // ── ROSTER ────────────────────────────────────────────────────────
-function openMemberProfile(empId) {
-  const e = allEmployees.find(x => x.id === empId);
+let currentProfileEmpId = null; function openMemberProfile(empId) {
+  currentProfileEmpId = empId; const e = allEmployees.find(x => x.id === empId);
   if (!e) return;
   document.getElementById('mp-title').textContent = `${e.call_no||''} — ${e.last_name||''}, ${e.first_name||''}`;
   const row = (label, value) => value
@@ -2506,10 +2506,10 @@ function openMemberProfile(empId) {
         <div style="font-size:14px;color:var(--text)">${value}</div>
        </div>` : '';
   document.getElementById('mp-body').innerHTML = `
-    <div style="margin-bottom:12px">${statusBadge(e.status)}</div>
+    
     ${row('Call #', e.call_no)}
     ${row('First Name', e.first_name)}
-    ${row('Last Name', e.last_name)}
+    ${row('Last Name', e.last_name)}${row('Status', statusBadge(e.status))}
     ${row('Cell Phone', e.phone)}
     ${row('Email', e.email ? `<a href="mailto:${e.email}" style="color:var(--brand)">${e.email}</a>` : '')}
     ${row('City', e.city)}
@@ -2520,10 +2520,12 @@ function openMemberProfile(empId) {
     ${row('Spouse Phone', e.spouse_phone)}
     ${row('Special Teams', e.special_teams)}
   `;
-  document.getElementById('member-profile-modal').classList.add('open');
+  const editBtn = document.getElementById('mp-edit-btn'); if (editBtn) editBtn.style.display = currentRole === 'Admin' ? '' : 'none'; document.getElementById('member-profile-modal').classList.add('open');
 }
 
-function getRosterRows() {
+function startEditMember(){const e=allEmployees.find(x=>x.id===currentProfileEmpId);if(!e)return;const statuses=['Active','Rookie','Inactive','Retired','Admin'];document.getElementById('mp-body').innerHTML=`<div class="detail-grid"><div class="detail-field"><div class="detail-label">Call #</div><input class="modal-input" id="em-call" value="${e.call_no||''}"></div><div class="detail-field"><div class="detail-label">Status</div><select class="modal-input" id="em-status">${statuses.map(s=>`<option value="${s}" ${e.status===s?'selected':''}>${s}</option>`).join('')}</select></div><div class="detail-field"><div class="detail-label">First Name</div><input class="modal-input" id="em-first" value="${e.first_name||''}"></div><div class="detail-field"><div class="detail-label">Last Name</div><input class="modal-input" id="em-last" value="${e.last_name||''}"></div><div class="detail-field"><div class="detail-label">Cell Phone</div><input class="modal-input" id="em-phone" value="${e.phone||''}"></div><div class="detail-field"><div class="detail-label">Email</div><input class="modal-input" id="em-email" value="${e.email||''}"></div><div class="detail-field"><div class="detail-label">City</div><input class="modal-input" id="em-city" value="${e.city||''}"></div><div class="detail-field full"><div class="detail-label">Address</div><input class="modal-input" id="em-address" value="${e.address||''}"></div><div class="detail-field"><div class="detail-label">Birthday</div><input type="date" class="modal-input" id="em-birthday" value="${e.birthday||''}"></div><div class="detail-field"><div class="detail-label">Hire Date</div><input type="date" class="modal-input" id="em-hire" value="${e.hire_date||''}"></div><div class="detail-field"><div class="detail-label">Spouse</div><input class="modal-input" id="em-spouse" value="${e.spouse||''}"></div><div class="detail-field"><div class="detail-label">Spouse Phone</div><input class="modal-input" id="em-spouse-phone" value="${e.spouse_phone||''}"></div><div class="detail-field full"><div class="detail-label">Special Teams</div><input class="modal-input" id="em-special-teams" value="${e.special_teams||''}"></div></div><div style="display:flex;align-items:center;gap:10px;margin-top:18px"><button class="save-btn" onclick="saveEditMember()">Save Changes</button><button class="cancel-btn" onclick="openMemberProfile(currentProfileEmpId)">Cancel</button></div>`;const editBtn=document.getElementById('mp-edit-btn');if(editBtn)editBtn.style.display='none';}
+  async function saveEditMember(){if(!currentProfileEmpId)return;const payload={call_no:document.getElementById('em-call').value.trim()||null,first_name:document.getElementById('em-first').value.trim()||null,last_name:document.getElementById('em-last').value.trim()||null,status:document.getElementById('em-status').value,phone:document.getElementById('em-phone').value.trim()||null,email:document.getElementById('em-email').value.trim()||null,city:document.getElementById('em-city').value.trim()||null,address:document.getElementById('em-address').value.trim()||null,birthday:document.getElementById('em-birthday').value||null,hire_date:document.getElementById('em-hire').value||null,spouse:document.getElementById('em-spouse').value.trim()||null,spouse_phone:document.getElementById('em-spouse-phone').value.trim()||null,special_teams:document.getElementById('em-special-teams').value.trim()||null,updated_at:new Date().toISOString()};const btn=document.querySelector('#member-profile-modal .save-btn');btn.disabled=true;btn.textContent='Saving...';try{const res=await fetch(`${SUPABASE_URL}/rest/v1/employees?id=eq.${currentProfileEmpId}`,{method:'PATCH',headers:{...headers,'Content-Type':'application/json','Prefer':'return=minimal'},body:JSON.stringify(payload)});if(!res.ok)throw new Error(await res.text());const idx=allEmployees.findIndex(e=>e.id===currentProfileEmpId);if(idx>-1)Object.assign(allEmployees[idx],payload);openMemberProfile(currentProfileEmpId);renderRoster();}catch(err){alert('Save failed: '+err.message);}finally{if(btn){btn.disabled=false;btn.textContent='Save Changes';}}}
+  function getRosterRows() {
   const status  = document.getElementById('r-status').value;
   const rsearch = document.getElementById('r-search').value.toLowerCase();
   let rows = allEmployees.filter(e => {
