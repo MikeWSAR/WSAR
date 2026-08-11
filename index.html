@@ -2117,7 +2117,7 @@ async function loadReporting() {
     }
 
     // 4. Build row objects for all active employees
-    const activeEmps = allEmployees.filter(e => ['Active','Rookie','Admin'].includes(e.status));
+    const activeEmps = allEmployees.filter(e => ['Active','Rookie'].includes(e.status));
     repRows = activeEmps.map(e => {
       const d = empData[e.id] || { all:0, searches:0, training:0, coreTrain:0, trainExt:0 };
       const eligible = d.searches + d.training; // S + T (TC excluded)
