@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SAR Tracker — Wasatch County</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
@@ -3513,9 +3513,11 @@ async function toggleSubmittedField() { const el = document.getElementById('f-su
       { method: 'DELETE', headers }
     );
 
-    // 3. Insert new employee assignments
-    if (checkedIds.length) {
-      const inserts = checkedIds.map(eid => ({ id: crypto.randomUUID(), case_id: savedCaseId, employee_id: eid }));
+          // 3. Insert new employee assignments (OOC member is included so they're counted in responding totals; deduped to avoid double counting if also checked)
+          const occIdForCount = document.getElementById('f-occ').value || '';
+          const respondingIds = occIdForCount ? [...new Set([...checkedIds, occIdForCount])] : checkedIds;
+          if (respondingIds.length) {
+                    const inserts = respondingIds.map(eid => ({ id: crypto.randomUUID(), case_id: savedCaseId, employee_id: eid }));
       const insRes = await fetch(
         `${SUPABASE_URL}/rest/v1/case1_employees`,
         { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
@@ -3525,9 +3527,9 @@ async function toggleSubmittedField() { const el = document.getElementById('f-su
     }
 
     // Update local cache counts
-    caseEmpCounts[savedCaseId] = checkedIds.length;
+          caseEmpCounts[savedCaseId] = respondingIds.length;
     const idx = allCases.findIndex(c => c.id === savedCaseId);
-    if (idx > -1) allCases[idx] = { ...allCases[idx], ...payload, _resp_count: checkedIds.length };
+          if (idx > -1) allCases[idx] = { ...allCases[idx], ...payload, _resp_count: respondingIds.length };
     renderCases(); renderDashboard();
 
     // 4. Write audit log entry
@@ -3547,7 +3549,7 @@ async function toggleSubmittedField() { const el = document.getElementById('f-su
         case_gps: payload.case_gps,
         occ_employee_id: payload.occ_employee_id,
         notes: payload.notes,
-        responding_count: checkedIds.length,
+                responding_count: respondingIds.length,
         submitted: payload.submitted,
         submitted_at: payload.submitted_at,
       },
