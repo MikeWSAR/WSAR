@@ -187,6 +187,7 @@
       background: var(--bg); border-bottom: 1px solid var(--border);
       font-weight: 600; white-space: nowrap;
     }
+.ram-thead th { padding: 18px 16px; }
     tbody tr { border-bottom: 1px solid var(--border); cursor: default; transition: background .1s; }
     tbody tr:last-child { border-bottom: none; }
     tbody tr:hover { background: #f8fafc; }
@@ -4615,7 +4616,7 @@ async function generateRookieMembersReport() {
     body.innerHTML = `
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Rank</th><th>Last Name</th><th>First Name</th><th>Team Eligible</th><th>Events</th><th>Eligible %</th><th>Medical</th><th>Search %</th><th>Training</th><th>Train %</th></tr></thead>
+          <thead class="ram-thead"><tr><th>Rank</th><th>Last Name</th><th>First Name</th><th>Team Eligible</th><th>Member Events</th><th>Eligible %</th><th>Search &amp; Medical Calls</th><th>Search %</th><th>Training</th><th>Train %</th></tr></thead>
           <tbody>
             ${rows.length ? rows.map((r, i) => `<tr>
               <td class="muted">${i + 1}</td>
@@ -4641,7 +4642,7 @@ async function generateRookieMembersReport() {
 function exportRookieMembers(type) {
   if (!rookieMembersData) return;
   const { from, to, totalEligible, rows } = rookieMembersData;
-  const rowHeaders = ['Rank','Last Name','First Name','Team Eligible','Events','Eligible %','Medical','Search %','Training','Train %'];
+  const rowHeaders = ['Rank','Last Name','First Name','Team Eligible','Member Events','Eligible %','Search & Medical Calls','Search %','Training','Train %'];
   const rowData = rows.map((r, i) => [i + 1, r.e.last_name || '', r.e.first_name || '', totalEligible, r.all, r.allPct + '%', r.searches, r.searchPct + '%', r.training, r.trainPct + '%']);
 
   if (type === 'csv') {
