@@ -908,6 +908,7 @@
           </div>
           <button class="action-btn" onclick="navigate('coreByMember')">👤 Core Training by Member</button>
           <button class="action-btn" onclick="navigate('memberActivity')">📋 Member Activity</button>
+                    <button class="action-btn" onclick="navigate('rookieActivity')">🐣 Rookie Activity</button>
         </div>
       </div>
 
@@ -1007,6 +1008,46 @@
         <div id="ma-results-body" style="padding:20px"></div>
       </div>
     </div>
+
+<!-- ROOKIE ACTIVITY PAGE -->
+<div id="page-rookieActivity" class="page">
+  <div class="section-card" style="margin-bottom:16px">
+    <div class="section-header">
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="action-btn" onclick="navigate('reporting')">← Back</button>
+        <h3>Rookie Activity</h3>
+      </div>
+    </div>
+    <div class="detail-grid" style="padding:20px">
+      <div class="detail-field full">
+        <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="detail-label" style="margin:0">From</span>
+            <input class="ttm-style-input" id="ra-from" type="date" style="width:150px">
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span class="detail-label" style="margin:0">To</span>
+            <input class="ttm-style-input" id="ra-to" type="date" style="width:150px">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="border-top:1px solid var(--border);padding:14px 20px">
+      <button class="save-btn" onclick="generateRookieActivityReport()">🐣 Generate Report</button>
+    </div>
+  </div>
+
+  <div class="section-card" id="ra-results-card" style="display:none">
+    <div class="section-header">
+      <h3 id="ra-results-title">Rookie Activity</h3>
+      <div class="section-header-actions">
+        <button class="export-btn" onclick="exportRookieActivity('csv')">↓ CSV</button>
+        <button class="export-btn" onclick="exportRookieActivity('pdf')">↓ PDF</button>
+      </div>
+    </div>
+    <div id="ra-results-body" style="padding:20px"></div>
+  </div>
+</div>
 
     <!-- CASES PAGE -->
     <div id="page-cases" class="page">
@@ -1736,14 +1777,15 @@ const pages = { dashboard: document.getElementById('page-dashboard'),
                 reporting: document.getElementById('page-reporting'),
                 trainingSummary: document.getElementById('page-trainingSummary'),
                 coreByMember: document.getElementById('page-coreByMember'),
-                memberActivity: document.getElementById('page-memberActivity') };
+                                  memberActivity: document.getElementById('page-memberActivity'),
+                                 rookieActivity: document.getElementById('page-rookieActivity') };
 const navLinks = document.querySelectorAll('#sidebar nav a');
 
 function navigate(page) {
   navLinks.forEach(a => a.classList.toggle('active',
     a.dataset.page === page ||
     (a.dataset.page === 'trainingSummary' && (page === 'training' || page === 'coreByMember')) ||
-    (a.dataset.page === 'reporting' && page === 'memberActivity')));
+            (a.dataset.page === 'reporting' && (page === 'memberActivity' || page === 'rookieActivity'))));
   Object.entries(pages).forEach(([k, el]) => el.classList.toggle('active', k === page));
   document.getElementById('page-title').textContent =
     { dashboard: 'Dashboard', cases: 'Case Log', roster: 'Members', training: 'Core Training', reporting: 'Reporting', trainingSummary: 'Core Training Summary', coreByMember: 'Core Training by Member', memberActivity: 'Member Activity' }[page] || page;
@@ -4302,6 +4344,136 @@ function exportMemberActivity(type) {
       <tbody>${tableRows}</tbody></table>
       <script>window.onload=()=>{window.print();}<\/script>
       </body></html>`);
+    win.document.close();
+  }
+}
+
+
+let raReportData = null;
+
+async function generateRookieActivityReport() {
+  const from = document.getElementById('ra-from').value;
+  const to = document.getElementById('ra-to').value;
+  if (!from || !to) { alert('Please select a date range.'); return; }
+
+  const card = document.getElementById('ra-results-card');
+  const body = document.getElementById('ra-results-body');
+  document.getElementById('ra-results-title').textContent = `Rookie Activity â ${fmt(from)} to ${fmt(to)}`;
+  card.style.display = '';
+  body.innerHTML = '<div class="loader-wrap"><div class="spinner"></div><br>Loadingâ¦</div>';
+
+  try {
+    const trCases = allCases.filter(c => c.case_type === 'TR' && c.date >= from && c.date <= to)
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+    const caseEmpMap = {};
+    const caseIds = trCases.map(c => c.id);
+    for (let i = 0; i < caseIds.length; i += 60) {
+      const chunk = caseIds.slice(i, i + 60);
+      if (!chunk.length) continue;
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/case1_employees?select=employee_id,case_id&case_id=in.(${chunk.join(',')})`,
+        { headers: { ...headers, 'Range': '0-9999' } }
+      );
+      const data = await r.json();
+      if (Array.isArray(data)) {
+        data.forEach(row => {
+          if (!caseEmpMap[row.case_id]) caseEmpMap[row.case_id] = new Set();
+          caseEmpMap[row.case_id].add(row.employee_id);
+        });
+      }
+    }
+
+    const rookies = allEmployees.filter(e => e.status === 'Rookie');
+    const actives = allEmployees.filter(e => e.status === 'Active');
+
+    const rows = trCases.map(c => {
+      const respondingIds = caseEmpMap[c.id] || new Set();
+      const notPresent = rookies.filter(r => !respondingIds.has(r.id)).map(r => r.last_name).sort();
+      const activePresent = actives.filter(a => respondingIds.has(a.id)).map(a => a.last_name).sort();
+      return {
+        date: c.date,
+        type: c.case_type,
+        responding: c._resp_count || respondingIds.size,
+        notes: c.notes || '',
+        notPresent: notPresent.join(', '),
+        activePresent: activePresent.join(', ')
+      };
+    });
+
+    raReportData = { from, to, rows };
+
+    body.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Type</th><th>Responding</th><th>Notes</th><th>Rookies Not Present</th><th>Active Members</th></tr></thead>
+          <tbody>
+            ${rows.length ? rows.map(r => `<tr>
+              <td style="white-space:nowrap">${fmt(r.date)}</td>
+              <td class="muted">${r.type}</td>
+              <td class="muted">${r.responding}</td>
+              <td class="muted" style="max-width:260px">${truncate(r.notes, 80)}</td>
+              <td class="muted">${r.notPresent || 'â'}</td>
+              <td class="muted">${r.activePresent || 'â'}</td>
+            </tr>`).join('') : '<tr><td colspan="6"><div class="empty">No TR cases found for this period.</div></td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    body.innerHTML = `<div style="padding:16px;color:#ef4444">Error loading report: ${err.message}</div>`;
+  }
+}
+
+function exportRookieActivity(type) {
+  if (!raReportData) return;
+  const { from, to, rows } = raReportData;
+  const rowHeaders = ['Date', 'Type', 'Responding', 'Notes', 'Rookies Not Present', 'Active Members'];
+  const rowData = rows.map(r => [fmt(r.date), r.type, r.responding, r.notes, r.notPresent, r.activePresent]);
+
+  if (type === 'csv') {
+    const lines = [
+      ['Rookie Activity Report'],
+      [`Date Range: ${fmt(from)} to ${fmt(to)}`],
+      [],
+      rowHeaders, ...rowData
+    ];
+    const csv = lines.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+    a.download = `WSAR_RookieActivity_${from}_to_${to}.csv`;
+    a.click();
+  } else {
+    const tableRows = rowData.map(r => `<tr>${r.map(v => `<td>${v}</td>`).join('')}</tr>`).join('');
+    const win = window.open('', '_blank');
+    win.document.write(`<!DOCTYPE html><html><head><title>WSAR Rookie Activity</title>
+<style>
+* { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body { font-family: Arial, sans-serif; font-size: 12px; padding: 20px; }
+h2 { margin-bottom: 4px; }
+p { color: #666; margin-bottom: 16px; font-size: 11px; }
+table { width: 100%; border-collapse: collapse; margin-bottom: 24px; table-layout: fixed; }
+th { background: #1e40af; color: white; padding: 7px 10px; text-align: left; font-size: 11px; }
+td { padding: 6px 10px; border-bottom: 1px solid #e2e8f0; }
+tr:nth-child(even) td { background: #f8fafc; }
+@media print { body { padding: 0; } }
+</style></head><body>
+<div style="position:relative">
+<div style="position:absolute;top:0;right:0;text-align:center;line-height:1">
+<div style="display:flex;align-items:center;justify-content:center;gap:1px">
+<span style="font-weight:700;font-size:14px;letter-spacing:-0.5px;font-family:Arial,sans-serif;color:#211D1F;transform:scaleX(0.85);display:inline-block">SEARCH</span>
+<span style="display:inline-flex;align-items:center;justify-content:center;width:12px;height:12px;background:#CD1A21;color:#fff;font-weight:900;font-size:10px;border-radius:2px;margin:0 1px">+</span>
+<span style="font-weight:700;font-size:14px;letter-spacing:-0.5px;font-family:Arial,sans-serif;color:#211D1F;transform:scaleX(0.85);display:inline-block">RESCUE</span>
+</div>
+<div style="font-weight:700;font-size:10px;margin-top:1px;font-family:Arial,sans-serif;color:#211D1F">Wasatch County</div>
+</div>
+<h2>WSAR Rookie Activity</h2>
+<p>Date Range: ${fmt(from)} â ${fmt(to)} â Exported ${new Date().toLocaleDateString()}</p>
+</div>
+<table><thead><tr>${rowHeaders.map(h => `<th>${h}</th>`).join('')}</tr></thead>
+<tbody>${tableRows}</tbody></table>
+<script>window.onload=()=>{window.print();}<\/script>
+</body></html>`);
     win.document.close();
   }
 }
