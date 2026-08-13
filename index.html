@@ -187,7 +187,18 @@
       background: var(--bg); border-bottom: 1px solid var(--border);
       font-weight: 600; white-space: nowrap;
     }
-.ram-thead th { padding: 18px 16px; }
+.ram-thead th { padding: 14px 10px; white-space: normal; line-height: 1.3; vertical-align: bottom; }
+.ram-table { table-layout: fixed; }
+.ram-table th:nth-child(1), .ram-table td:nth-child(1) { width: 5%; }
+.ram-table th:nth-child(2), .ram-table td:nth-child(2) { width: 13%; }
+.ram-table th:nth-child(3), .ram-table td:nth-child(3) { width: 12%; }
+.ram-table th:nth-child(4), .ram-table td:nth-child(4) { width: 10%; }
+.ram-table th:nth-child(5), .ram-table td:nth-child(5) { width: 10%; }
+.ram-table th:nth-child(6), .ram-table td:nth-child(6) { width: 10%; }
+.ram-table th:nth-child(7), .ram-table td:nth-child(7) { width: 13%; }
+.ram-table th:nth-child(8), .ram-table td:nth-child(8) { width: 9%; }
+.ram-table th:nth-child(9), .ram-table td:nth-child(9) { width: 9%; }
+.ram-table th:nth-child(10), .ram-table td:nth-child(10) { width: 9%; }
     tbody tr { border-bottom: 1px solid var(--border); cursor: default; transition: background .1s; }
     tbody tr:last-child { border-bottom: none; }
     tbody tr:hover { background: #f8fafc; }
@@ -4615,7 +4626,7 @@ async function generateRookieMembersReport() {
 
     body.innerHTML = `
       <div class="table-wrap">
-        <table>
+        <table class="ram-table">
           <thead class="ram-thead"><tr><th>Rank</th><th>Last Name</th><th>First Name</th><th>Team Eligible</th><th>Member Events</th><th>Eligible %</th><th>Search &amp; Medical Calls</th><th>Search %</th><th>Training</th><th>Train %</th></tr></thead>
           <tbody>
             ${rows.length ? rows.map((r, i) => `<tr>
