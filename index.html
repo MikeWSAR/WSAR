@@ -1788,7 +1788,7 @@ function navigate(page) {
             (a.dataset.page === 'reporting' && (page === 'memberActivity' || page === 'rookieActivity'))));
   Object.entries(pages).forEach(([k, el]) => el.classList.toggle('active', k === page));
   document.getElementById('page-title').textContent =
-    { dashboard: 'Dashboard', cases: 'Case Log', roster: 'Members', training: 'Core Training', reporting: 'Reporting', trainingSummary: 'Core Training Summary', coreByMember: 'Core Training by Member', memberActivity: 'Member Activity' }[page] || page;
+    { dashboard: 'Dashboard', cases: 'Case Log', roster: 'Members', training: 'Core Training', reporting: 'Reporting', trainingSummary: 'Core Training Summary', coreByMember: 'Core Training by Member', memberActivity: 'Member Activity', rookieActivity: 'Rookie Activity' }[page] || page;
   document.getElementById('ttm-wrap').style.display = page === 'dashboard' ? '' : 'none';
   if (page === 'cases')     renderCases();
   if (page === 'roster')    renderRoster();
@@ -1798,6 +1798,7 @@ function navigate(page) {
   if (page === 'trainingSummary') renderTrainingSummary();
   if (page === 'coreByMember') renderCoreByMember();
   if (page === 'memberActivity') renderMemberActivity();
+  if (page === 'rookieActivity') initRookieActivity();
 }
 navLinks.forEach(a => a.addEventListener('click', () => navigate(a.dataset.page)));
 
@@ -4351,6 +4352,14 @@ function exportMemberActivity(type) {
 
 let raReportData = null;
 
+function initRookieActivity() {
+  const fromEl = document.getElementById('ra-from');
+  if (fromEl && !fromEl.value) {
+    const rookieHires = allEmployees.filter(e => e.status === 'Rookie' && e.hire_date).map(e => e.hire_date).sort();
+    if (rookieHires.length) fromEl.value = rookieHires[0];
+  }
+}
+
 async function generateRookieActivityReport() {
   const from = document.getElementById('ra-from').value;
   const to = document.getElementById('ra-to').value;
@@ -4358,9 +4367,9 @@ async function generateRookieActivityReport() {
 
   const card = document.getElementById('ra-results-card');
   const body = document.getElementById('ra-results-body');
-  document.getElementById('ra-results-title').textContent = `Rookie Activity â ${fmt(from)} to ${fmt(to)}`;
+  document.getElementById('ra-results-title').textContent = `Rookie Activity — ${fmt(from)} to ${fmt(to)}`;
   card.style.display = '';
-  body.innerHTML = '<div class="loader-wrap"><div class="spinner"></div><br>Loadingâ¦</div>';
+  body.innerHTML = '<div class="loader-wrap"><div class="spinner"></div><br>Loading…</div>';
 
   try {
     const trCases = allCases.filter(c => c.case_type === 'TR' && c.date >= from && c.date <= to)
@@ -4386,15 +4395,18 @@ async function generateRookieActivityReport() {
 
     const rookies = allEmployees.filter(e => e.status === 'Rookie');
     const actives = allEmployees.filter(e => e.status === 'Active');
+    const rookieIdSet = new Set(rookies.map(r => r.id));
+    const nameFmt = e => `${(e.first_name || '?')[0]}. ${e.last_name}`;
 
     const rows = trCases.map(c => {
       const respondingIds = caseEmpMap[c.id] || new Set();
-      const notPresent = rookies.filter(r => !respondingIds.has(r.id)).map(r => r.last_name).sort();
-      const activePresent = actives.filter(a => respondingIds.has(a.id)).map(a => a.last_name).sort();
+      const notPresent = rookies.filter(r => !respondingIds.has(r.id)).map(nameFmt).sort();
+      const activePresent = actives.filter(a => respondingIds.has(a.id)).map(nameFmt).sort();
+      const respondingRookies = [...respondingIds].filter(id => rookieIdSet.has(id)).length;
       return {
         date: c.date,
         type: c.case_type,
-        responding: c._resp_count || respondingIds.size,
+        responding: respondingRookies,
         notes: c.notes || '',
         notPresent: notPresent.join(', '),
         activePresent: activePresent.join(', ')
@@ -4406,15 +4418,15 @@ async function generateRookieActivityReport() {
     body.innerHTML = `
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Date</th><th>Type</th><th>Responding</th><th>Notes</th><th>Rookies Not Present</th><th>Active Members</th></tr></thead>
+          <thead><tr><th>Date</th><th>Type</th><th>Responding</th><th>Notes</th><th>Rookies Not Present</th><th>Assisting Members</th></tr></thead>
           <tbody>
             ${rows.length ? rows.map(r => `<tr>
               <td style="white-space:nowrap">${fmt(r.date)}</td>
               <td class="muted">${r.type}</td>
               <td class="muted">${r.responding}</td>
               <td class="muted" style="max-width:260px">${truncate(r.notes, 80)}</td>
-              <td class="muted">${r.notPresent || 'â'}</td>
-              <td class="muted">${r.activePresent || 'â'}</td>
+              <td class="muted">${r.notPresent || ''}</td>
+              <td class="muted">${r.activePresent || ''}</td>
             </tr>`).join('') : '<tr><td colspan="6"><div class="empty">No TR cases found for this period.</div></td></tr>'}
           </tbody>
         </table>
@@ -4428,7 +4440,7 @@ async function generateRookieActivityReport() {
 function exportRookieActivity(type) {
   if (!raReportData) return;
   const { from, to, rows } = raReportData;
-  const rowHeaders = ['Date', 'Type', 'Responding', 'Notes', 'Rookies Not Present', 'Active Members'];
+  const rowHeaders = ['Date', 'Type', 'Responding', 'Notes', 'Rookies Not Present', 'Assisting Members'];
   const rowData = rows.map(r => [fmt(r.date), r.type, r.responding, r.notes, r.notPresent, r.activePresent]);
 
   if (type === 'csv') {
@@ -4468,7 +4480,7 @@ tr:nth-child(even) td { background: #f8fafc; }
 <div style="font-weight:700;font-size:10px;margin-top:1px;font-family:Arial,sans-serif;color:#211D1F">Wasatch County</div>
 </div>
 <h2>WSAR Rookie Activity</h2>
-<p>Date Range: ${fmt(from)} â ${fmt(to)} â Exported ${new Date().toLocaleDateString()}</p>
+<p>Date Range: ${fmt(from)} – ${fmt(to)} — Exported ${new Date().toLocaleDateString()}</p>
 </div>
 <table><thead><tr>${rowHeaders.map(h => `<th>${h}</th>`).join('')}</tr></thead>
 <tbody>${tableRows}</tbody></table>
