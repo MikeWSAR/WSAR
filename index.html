@@ -1934,6 +1934,9 @@ async function renderDashboard() {
   startDate.setFullYear(startDate.getFullYear() - 1);
   startDate.setDate(startDate.getDate() + 1);
   const startStr = startDate.toISOString().slice(0, 10);
+const chartStartDate = new Date(startDate.getFullYear(), startDate.getMonth() - 2, 1);
+const chartStartStr = chartStartDate.toISOString().slice(0, 10);
+const chartCases = allCases.filter(c => c.date >= chartStartStr && c.date <= endStr);
 
   // --- Filter cases to TTM ---
   const ttmCases = allCases.filter(c => c.date >= startStr && c.date <= endStr);
@@ -2039,19 +2042,19 @@ async function renderDashboard() {
   }
 
   // --- Call Outs by Month line chart ---
-  // Build 12 monthly buckets
+  // Build 14 monthly buckets
   const buckets = [];
   {
-    let cur = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    let cur = new Date(chartStartDate.getFullYear(), chartStartDate.getMonth(), 1);
     const last = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
     while (cur <= last) {
       const ym = `${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}`;
-      const lbl = cur.toLocaleDateString('en-US', { month: 'short' });
+      const lbl = cur.getFullYear() !== endDate.getFullYear() ? cur.toLocaleDateString('en-US', { month: 'short' }) + '-' + String(cur.getFullYear()).slice(-2) : cur.toLocaleDateString('en-US', { month: 'short' });
       buckets.push({ ym, lbl, count: 0 });
       cur = new Date(cur.getFullYear(), cur.getMonth() + 1, 1);
     }
   }
-  ttmCases.forEach(c => {
+  chartCases.forEach(c => {
     if (!c.date) return;
     const ym = c.date.slice(0, 7);
     const b  = buckets.find(x => x.ym === ym);
