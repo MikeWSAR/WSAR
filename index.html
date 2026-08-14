@@ -533,6 +533,22 @@
     .emp-count { font-size: 11px; color: var(--muted); margin-top: 4px; }
     .modal-loader { text-align: center; padding: 40px; color: var(--muted); }
     .detail-divider { grid-column: 1/-1; border: none; border-top: 1px solid var(--border); margin: 2px 0; }
+.modal-tabs { display:flex; gap:4px; padding:0 24px; border-bottom:1px solid var(--border); background:var(--surface); }
+.modal-tab-btn { padding:12px 16px; border:none; background:none; cursor:pointer; font-size:13px; font-weight:600; color:var(--muted); border-bottom:2px solid transparent; }
+.modal-tab-btn.active { color:var(--brand); border-bottom-color:var(--brand); }
+.ir-section { margin-bottom:20px; }
+.ir-section h4 { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid var(--border); }
+.ir-ckgrid { display:flex; flex-wrap:wrap; gap:6px 18px; margin-bottom:4px; }
+.ir-ck { display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; }
+.ir-ck input { width:15px; height:15px; accent-color:var(--brand); cursor:pointer; }
+.ir-equip-table { width:100%; border-collapse:collapse; font-size:12px; }
+.ir-equip-table th, .ir-equip-table td { padding:5px 8px; border-bottom:1px solid var(--border); text-align:left; }
+.ir-equip-table input { width:70px; padding:4px 6px; border:1px solid var(--border); border-radius:6px; font-size:12px; }
+.ir-num-row { display:flex; gap:16px; flex-wrap:wrap; }
+.ir-num-field { display:flex; flex-direction:column; gap:4px; }
+.ir-num-field label { font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+.ir-num-field input { width:120px; }
+
     /* Save button */
     .save-btn {
       background: var(--brand); color: #fff; border: none;
@@ -3182,8 +3198,302 @@ async function initMap(withGPS, allFiltered) {
 }
 
 // ── ADD CASE ──────────────────────────────────────────────────────
-async function openAddCase() {
+async 
+// ── INCIDENT REPORT (Page 2) ───────────────────────────────────────────
+let currentIrPdfPath = null;
+const IR_ACTIVITY = ['ATV','Snowmobile','Aircraft','Boat','Hiker','Hunter','Skier','Truck'];
+const IR_SITUATION = ['Unknown','Lost','Stranded','Injury','Runaway','Overdue','Drowning'];
+const IR_LASTPOS = ['Unknown','Last Seen','Abandoned Car','Building','Known Route','Known Destination','Confirmed Clue'];
+const IR_RESPONSE_TYPE = ['Standby Only','Land Search','Water Search','Air Search','Rescue','Body Recovery','10-22'];
+const IR_TECHNIQUES = ['Assist/Own Power','Carry Out','Evac by Animal','Water Evac','Aircraft Evac','Vehicle Evac','Litter and Tobogan','Confinement','Air Search','Hasty Search','Visual Track','Search Dogs','Line Search','Grid'];
+const IR_BY = ['By SAR Effort','By Bystanders',"By him/herself",'No help needed','Not found','EMS Assist'];
+const IR_REASON = ['Successful','Authority Decision','Family Decision','Hazard','10-22 - cancelled'];
+const IR_CLUES_BY = ['Interrogation','Line Search','Helicopter','Fixed Wing','Subject Signal'];
+const IR_EQUIP = ['Helicopter','Fixed Wing','SAR 4WD','SAR Trailers',"SAR ATV's",'SAR Boat','SAR PWC','SAR Snowmobile','SAR Medbed','SAR Dirtbike','SAR E-Dirtbike','SAR Ebike pedal','Private 4WD','Private Trailers','Private ATV','Private Motorcycle','Private Boat','Private PWC','Private Snowmobile','Horses','Dogs'];
+
+function irCk(name, options, selected) {
+  selected = selected || [];
+  return options.map(o => `<label class="ir-ck"><input type="checkbox" name="${name}" value="${o.replace(/"/g,'&quot;')}" ${selected.includes(o)?'checked':''}> ${o}</label>`).join('');
+}
+
+function renderIncidentReportPage(ir, pdfPath) {
+  ir = ir || {};
+  const cc = ir.confirmed_clues || {};
+  const res = ir.results || {};
+  const mh = ir.man_hours || {};
+  const gps = ir.event_gps || {};
+  const equipRows = IR_EQUIP.map(type => {
+    const row = (ir.equipment || []).find(e => e.type === type) || {};
+    return `<tr>
+      <td>${type}</td>
+      <td><input type="number" min="0" class="ir-equip-input" data-eq="${type}" data-field="units" value="${row.units ?? ''}"></td>
+      <td><input type="number" min="0" class="ir-equip-input" data-eq="${type}" data-field="hours" value="${row.hours ?? ''}"></td>
+      <td><input type="number" min="0" class="ir-equip-input" data-eq="${type}" data-field="miles" value="${row.miles ?? ''}"></td>
+      <td><input type="number" min="0" class="ir-equip-input" data-eq="${type}" data-field="persons" value="${row.persons ?? ''}"></td>
+    </tr>`;
+  }).join('');
+
+  return `
+  <div class="ir-section">
+    <h4>📄 Upload Incident Report PDF</h4>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <input type="file" id="f-ir-pdf-file" accept="application/pdf" class="modal-input" style="flex:1;min-width:200px">
+      <button type="button" id="ir-autofill-btn" class="save-btn admin-only" style="flex:none;padding:8px 16px" onclick="autoFillFromIncidentReportPdf()">🤖 Upload &amp; Auto-fill</button>
+    </div>
+    <div id="ir-pdf-status" style="font-size:12px;color:var(--muted);margin-top:6px">${pdfPath ? '📎 A report PDF is attached to this case.' : ''}</div>
+  </div>
+
+  <div class="ir-section">
+    <h4>Confirmed Clues</h4>
+    <div class="ir-ckgrid"><b style="width:100%;font-size:11px;color:var(--muted);text-transform:uppercase">Activity</b>${irCk('ir-activity', IR_ACTIVITY, cc.activity)}</div>
+    <div class="ir-ckgrid"><b style="width:100%;font-size:11px;color:var(--muted);text-transform:uppercase">Situation</b>${irCk('ir-situation', IR_SITUATION, cc.situation)}</div>
+    <div class="ir-ckgrid"><b style="width:100%;font-size:11px;color:var(--muted);text-transform:uppercase">Last Position</b>${irCk('ir-lastpos', IR_LASTPOS, cc.last_position)}</div>
+    <input class="modal-input" id="f-ir-lastpos-other" placeholder="Other (last position)" value="${(cc.last_position_other||'').replace(/"/g,'&quot;')}" style="margin-top:8px">
+  </div>
+
+  <div class="ir-section">
+    <h4>Response Type</h4>
+    <div class="ir-ckgrid">${irCk('ir-response-type', IR_RESPONSE_TYPE, ir.response_type)}</div>
+  </div>
+
+  <div class="ir-section">
+    <h4>Search Techniques</h4>
+    <div class="ir-ckgrid">${irCk('ir-techniques', IR_TECHNIQUES, ir.search_techniques)}</div>
+  </div>
+
+  <div class="ir-section">
+    <h4>Results</h4>
+    <div class="ir-num-row" style="margin-bottom:12px">
+      <div class="ir-num-field"><label>Persons Rescued</label><input type="number" min="0" class="modal-input" id="f-ir-persons-rescued" value="${res.persons_rescued ?? ''}"></div>
+      <div class="ir-num-field"><label>Lives Saved</label><input type="number" min="0" class="modal-input" id="f-ir-lives-saved" value="${res.lives_saved ?? ''}"></div>
+      <div class="ir-num-field" style="flex:1;min-width:180px"><label>Reason Terminated</label>
+        <select class="modal-input" id="f-ir-reason-terminated">
+          <option value="">— Select —</option>
+          ${IR_REASON.map(r => `<option value="${r}" ${res.reason_terminated===r?'selected':''}>${r}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="ir-ckgrid" style="margin-bottom:10px">${irCk('ir-by', IR_BY, res.by)}</div>
+    <label class="ir-ck" style="margin-bottom:10px"><input type="checkbox" id="f-ir-found-primary" ${res.found_in_primary_search_area?'checked':''}> Found In: Primary Search Area</label>
+    <div class="ir-ckgrid"><b style="width:100%;font-size:11px;color:var(--muted);text-transform:uppercase">Clues Found By</b>${irCk('ir-clues-by', IR_CLUES_BY, res.clues_found_by)}</div>
+  </div>
+
+  <div class="ir-section">
+    <h4>Equipment Used</h4>
+    <div style="overflow-x:auto">
+      <table class="ir-equip-table">
+        <thead><tr><th>Type</th><th>Units</th><th>Hours</th><th>Miles</th><th>Persons</th></tr></thead>
+        <tbody>${equipRows}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="ir-section">
+    <div class="ir-num-row">
+      <div class="ir-num-field"><label>Total Responders</label><input type="number" min="0" class="modal-input" id="f-ir-total-responders" value="${ir.total_responders ?? ''}"></div>
+    </div>
+  </div>
+
+  <div class="ir-section">
+    <h4>Brief Description of Find/Rescue</h4>
+    <textarea class="modal-input" id="f-ir-brief" rows="4">${(ir.brief_description||'').replace(/</g,'&lt;')}</textarea>
+  </div>
+
+  <div class="ir-section">
+    <h4>Man-Hours (Official Staff Use)</h4>
+    <div class="ir-num-row">
+      <div class="ir-num-field"><label>Paid Personnel</label><input type="number" min="0" class="modal-input" id="f-ir-mh-paid" value="${mh.paid ?? ''}"></div>
+      <div class="ir-num-field"><label>Volunteer SAR</label><input type="number" min="0" class="modal-input" id="f-ir-mh-vol-sar" value="${mh.volunteer_sar ?? ''}"></div>
+      <div class="ir-num-field"><label>Volunteer Non-SAR</label><input type="number" min="0" class="modal-input" id="f-ir-mh-vol-nonsar" value="${mh.volunteer_non_sar ?? ''}"></div>
+      <div class="ir-num-field"><label>Total Man-Hours</label><input type="number" min="0" class="modal-input" id="f-ir-mh-total" value="${mh.total ?? ''}"></div>
+    </div>
+  </div>
+
+  <div class="ir-section">
+    <h4>Event GPS</h4>
+    <div class="ir-num-row">
+      <div class="ir-num-field"><label>N</label><input class="modal-input" id="f-ir-gps-n" value="${(gps.n||'').replace(/"/g,'&quot;')}"></div>
+      <div class="ir-num-field"><label>W</label><input class="modal-input" id="f-ir-gps-w" value="${(gps.w||'').replace(/"/g,'&quot;')}"></div>
+    </div>
+  </div>
+  `;
+}
+
+function switchModalTab(n) {
+  const p1 = document.getElementById('modal-page1');
+  const p2 = document.getElementById('modal-page2');
+  if (p1) p1.style.display = n === 1 ? '' : 'none';
+  if (p2) p2.style.display = n === 2 ? '' : 'none';
+  const b1 = document.getElementById('tab-btn-1'), b2 = document.getElementById('tab-btn-2');
+  if (b1) b1.classList.toggle('active', n === 1);
+  if (b2) b2.classList.toggle('active', n === 2);
+}
+
+function collectIncidentReport() {
+  const ck = name => [...document.querySelectorAll(`input[name="${name}"]:checked`)].map(i => i.value);
+  const num = id => { const v = document.getElementById(id)?.value; return (v === '' || v == null) ? null : parseFloat(v); };
+  const equipment = IR_EQUIP.map(type => {
+    const esc = window.CSS && CSS.escape ? CSS.escape(type) : type;
+    const units = document.querySelector(`.ir-equip-input[data-eq="${esc}"][data-field="units"]`)?.value;
+    const hours = document.querySelector(`.ir-equip-input[data-eq="${esc}"][data-field="hours"]`)?.value;
+    const miles = document.querySelector(`.ir-equip-input[data-eq="${esc}"][data-field="miles"]`)?.value;
+    const persons = document.querySelector(`.ir-equip-input[data-eq="${esc}"][data-field="persons"]`)?.value;
+    if (!units && !hours && !miles && !persons) return null;
+    return {
+      type,
+      units: units ? parseFloat(units) : null,
+      hours: hours ? parseFloat(hours) : null,
+      miles: miles ? parseFloat(miles) : null,
+      persons: persons ? parseFloat(persons) : null,
+    };
+  }).filter(Boolean);
+
+  return {
+    confirmed_clues: {
+      activity: ck('ir-activity'),
+      situation: ck('ir-situation'),
+      last_position: ck('ir-lastpos'),
+      last_position_other: document.getElementById('f-ir-lastpos-other')?.value.trim() || '',
+    },
+    response_type: ck('ir-response-type'),
+    search_techniques: ck('ir-techniques'),
+    results: {
+      persons_rescued: num('f-ir-persons-rescued'),
+      lives_saved: num('f-ir-lives-saved'),
+      by: ck('ir-by'),
+      reason_terminated: document.getElementById('f-ir-reason-terminated')?.value || '',
+      found_in_primary_search_area: document.getElementById('f-ir-found-primary')?.checked || false,
+      clues_found_by: ck('ir-clues-by'),
+    },
+    equipment,
+    total_responders: num('f-ir-total-responders'),
+    brief_description: document.getElementById('f-ir-brief')?.value.trim() || '',
+    man_hours: {
+      paid: num('f-ir-mh-paid'),
+      volunteer_sar: num('f-ir-mh-vol-sar'),
+      volunteer_non_sar: num('f-ir-mh-vol-nonsar'),
+      total: num('f-ir-mh-total'),
+    },
+    event_gps: {
+      n: document.getElementById('f-ir-gps-n')?.value.trim() || '',
+      w: document.getElementById('f-ir-gps-w')?.value.trim() || '',
+    },
+  };
+}
+
+function applyIncidentReportToForm(ex) {
+  ex = ex || {};
+  const setCk = (name, values) => {
+    values = values || [];
+    document.querySelectorAll(`input[name="${name}"]`).forEach(cb => { if (values.includes(cb.value)) cb.checked = true; });
+  };
+  const setVal = (id, v) => { const el = document.getElementById(id); if (el && v != null && v !== '') el.value = v; };
+
+  const cc = ex.confirmed_clues || {};
+  setCk('ir-activity', cc.activity);
+  setCk('ir-situation', cc.situation);
+  setCk('ir-lastpos', cc.last_position);
+  setVal('f-ir-lastpos-other', cc.last_position_other);
+
+  setCk('ir-response-type', ex.response_type);
+  setCk('ir-techniques', ex.search_techniques);
+
+  const res = ex.results || {};
+  setVal('f-ir-persons-rescued', res.persons_rescued);
+  setVal('f-ir-lives-saved', res.lives_saved);
+  setCk('ir-by', res.by);
+  if (res.reason_terminated) setVal('f-ir-reason-terminated', res.reason_terminated);
+  const foundEl = document.getElementById('f-ir-found-primary');
+  if (foundEl && res.found_in_primary_search_area) foundEl.checked = true;
+  setCk('ir-clues-by', res.clues_found_by);
+
+  const esc = window.CSS && CSS.escape ? CSS.escape : (s => s);
+  (ex.equipment || []).forEach(row => {
+    if (!row || !row.type) return;
+    ['units','hours','miles','persons'].forEach(f => {
+      const el = document.querySelector(`.ir-equip-input[data-eq="${esc(row.type)}"][data-field="${f}"]`);
+      if (el && row[f] != null) el.value = row[f];
+    });
+  });
+
+  setVal('f-ir-total-responders', ex.total_responders);
+  if (ex.brief_description) { const b = document.getElementById('f-ir-brief'); if (b) b.value = ex.brief_description; }
+
+  const mh = ex.man_hours || {};
+  setVal('f-ir-mh-paid', mh.paid);
+  setVal('f-ir-mh-vol-sar', mh.volunteer_sar);
+  setVal('f-ir-mh-vol-nonsar', mh.volunteer_non_sar);
+  setVal('f-ir-mh-total', mh.total);
+
+  const gps = ex.event_gps || {};
+  setVal('f-ir-gps-n', gps.n);
+  setVal('f-ir-gps-w', gps.w);
+
+  switchModalTab(2);
+
+  if (ex.case_number) {
+    const curNum = document.getElementById('f-case-number')?.value?.trim();
+    if (curNum && ex.case_number.trim() && curNum !== ex.case_number.trim()) {
+      const statusEl = document.getElementById('ir-pdf-status');
+      if (statusEl) statusEl.innerHTML += `<br><span style="color:#b45309">⚠ PDF shows case number "${ex.case_number}" — this case is "${curNum}". Double-check you uploaded the right form.</span>`;
+    }
+  }
+}
+
+async function autoFillFromIncidentReportPdf() {
+  const fileInput = document.getElementById('f-ir-pdf-file');
+  const statusEl = document.getElementById('ir-pdf-status');
+  const btn = document.getElementById('ir-autofill-btn');
+  const file = fileInput?.files?.[0];
+  if (!file) { alert('Choose a PDF file first.'); return; }
+  if (file.type !== 'application/pdf') { alert('Please choose a PDF file.'); return; }
+
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = 'Uploading…'; }
+  if (statusEl) statusEl.textContent = 'Uploading PDF…';
+
+  try {
+    const safeCaseSeg = (currentCaseId && currentCaseId !== '__new__') ? currentCaseId : ('new-' + Date.now());
+    const path = `${safeCaseSeg}/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9_.-]/g,'_')}`;
+    const upRes = await fetch(`${SUPABASE_URL}/storage/v1/object/incident-reports/${path}`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/pdf' },
+      body: file,
+    });
+    if (!upRes.ok) throw new Error(await upRes.text());
+    currentIrPdfPath = path;
+    if (statusEl) statusEl.textContent = '📎 PDF uploaded. Reading form with AI…';
+    if (btn) btn.textContent = 'Reading…';
+
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let binary = '';
+    const chunkSize = 0x8000;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+    }
+    const b64 = btoa(binary);
+
+    const fnRes = await fetch(`${SUPABASE_URL}/functions/v1/extract-incident-report`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pdf_base64: b64 }),
+    });
+    const fnData = await fnRes.json().catch(() => ({}));
+    if (!fnRes.ok || fnData.error) throw new Error(fnData.error || ('Extraction failed (' + fnRes.status + ')'));
+
+    applyIncidentReportToForm(fnData.extracted || {});
+    if (statusEl) statusEl.textContent = '✅ Form auto-filled from PDF — please review before saving.';
+  } catch (err) {
+    if (statusEl) statusEl.textContent = '⚠️ ' + err.message;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
+  }
+}
+
+function openAddCase() {
   currentCaseId = '__new__';
+currentIrPdfPath = null;
   const modal   = document.getElementById('case-modal');
   const body    = document.getElementById('modal-body');
   const footer  = document.getElementById('modal-footer');
@@ -3212,6 +3522,11 @@ async function openAddCase() {
     sortedEmps.map(e => `<option value="${e.id}">${e.last_name}, ${e.first_name} (${e.call_no})</option>`).join('');
 
   body.innerHTML = `
+<div class="modal-tabs">
+<button type="button" class="modal-tab-btn active" id="tab-btn-1" onclick="switchModalTab(1)">📋 Case Info</button>
+<button type="button" class="modal-tab-btn" id="tab-btn-2" onclick="switchModalTab(2)">📝 Incident Report</button>
+</div>
+<div id="modal-page1">
     <div class="detail-grid">
       <div class="detail-field">
         <div class="detail-label">Case Number *</div>
@@ -3287,7 +3602,11 @@ async function openAddCase() {
             class="modal-input" style="width:110px">
         </div>
       </div>
-    </div>`;
+    </div></div>
+<div id="modal-page2" style="display:none">
+${renderIncidentReportPage({}, null)}
+</div>
+`;
 }
 
 // ── CASE DETAIL MODAL ─────────────────────────────────────────────
@@ -3328,7 +3647,8 @@ async function openCaseDetail(caseId) {
     const c = caseRes.data[0];
     if (!c) { body.innerHTML = '<div class="empty">Case not found.</div>'; return; }
 
-    numSpan.textContent = c.case_number;
+    currentIrPdfPath = c.incident_report_pdf_path || null;
+numSpan.textContent = c.case_number;
     const assignedIds = new Set(empRes.data.map(r => r.employee_id));
 
     // Build employee checkboxes: Active (last name) → Admin (last name) → Rookie (call no)
@@ -3354,6 +3674,11 @@ async function openCaseDetail(caseId) {
         </option>`).join('');
 
     body.innerHTML = `
+<div class="modal-tabs">
+<button type="button" class="modal-tab-btn active" id="tab-btn-1" onclick="switchModalTab(1)">📋 Case Info</button>
+<button type="button" class="modal-tab-btn" id="tab-btn-2" onclick="switchModalTab(2)">📝 Incident Report</button>
+</div>
+<div id="modal-page1">
       <div class="detail-grid">
         <div class="detail-field">
           <div class="detail-label">Case Number *</div>
@@ -3439,7 +3764,11 @@ async function openCaseDetail(caseId) {
               class="modal-input" style="width:110px" value="${c.exp_total != null ? c.exp_total : ''}">
           </div>
         </div>
-      </div>`;
+      </div></div>
+<div id="modal-page2" style="display:none">
+${renderIncidentReportPage(c.incident_report, c.incident_report_pdf_path)}
+</div>
+`;
 
     footer.style.display = 'flex';
     topBtn.style.display = '';
@@ -3545,6 +3874,8 @@ async function toggleSubmittedField() { const el = document.getElementById('f-su
       submitted_at:    submittedAt,
       updated_at:      new Date().toISOString(),
     };
+payload.incident_report = collectIncidentReport();
+payload.incident_report_pdf_path = currentIrPdfPath;
 
     const checkedIds = [...document.querySelectorAll('input[name="emp"]:checked')].map(i => i.value);
 
