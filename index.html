@@ -3198,7 +3198,6 @@ async function initMap(withGPS, allFiltered) {
 }
 
 // ── ADD CASE ──────────────────────────────────────────────────────
-async 
 // ── INCIDENT REPORT (Page 2) ───────────────────────────────────────────
 let currentIrPdfPath = null;
 const IR_ACTIVITY = ['ATV','Snowmobile','Aircraft','Boat','Hiker','Hunter','Skier','Truck'];
@@ -3491,7 +3490,7 @@ async function autoFillFromIncidentReportPdf() {
   }
 }
 
-function openAddCase() {
+async function openAddCase() {
   currentCaseId = '__new__';
 currentIrPdfPath = null;
   const modal   = document.getElementById('case-modal');
