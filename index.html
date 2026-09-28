@@ -1020,6 +1020,21 @@
               <span style="color:var(--muted);font-size:12px">Trailing 12 months from date entered</span>
             </div>
           </div>
+
+          <div class="detail-field full" style="border-top:1px solid var(--border);padding-top:16px;margin-top:4px">
+            <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+              <span class="detail-label" style="margin:0;min-width:108px">Case list range</span>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="detail-label" style="margin:0">From</span>
+                <input class="ttm-style-input" id="ma-detail-from" type="date" style="width:150px">
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="detail-label" style="margin:0">To</span>
+                <input class="ttm-style-input" id="ma-detail-to" type="date" style="width:150px">
+              </div>
+              <span style="color:var(--muted);font-size:12px">Controls the detailed case list only. Summary counts use the range above.</span>
+            </div>
+          </div>
         </div>
         <div class="modal-footer" style="border-top:1px solid var(--border);padding:14px 20px">
           <button class="save-btn" onclick="generateMemberActivityReport()">📋 Generate Report</button>
@@ -4389,6 +4404,14 @@ function renderMemberActivity() {
   if (!document.getElementById('ma-ttm-date').value) {
     document.getElementById('ma-ttm-date').value = lastDayOfPrevMonth();
   }
+  if (!document.getElementById('ma-detail-to').value) {
+    // Default case list range = the previous full month
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const last = new Date(now.getFullYear(), now.getMonth(), 0);
+    document.getElementById('ma-detail-from').value = `${last.getFullYear()}-${pad(last.getMonth() + 1)}-01`;
+    document.getElementById('ma-detail-to').value = `${last.getFullYear()}-${pad(last.getMonth() + 1)}-${pad(last.getDate())}`;
+  }
   document.getElementById('ma-results-card').style.display = 'none';
 }
 
@@ -4425,6 +4448,11 @@ async function generateMemberActivityReport() {
     from = fromDate.toISOString().slice(0, 10);
   }
   if (!from || !to) { alert('Please select a date range.'); return; }
+
+  // Case list range — independent of the summary range; falls back to it if left blank
+  const detailFrom = document.getElementById('ma-detail-from').value || from;
+  const detailTo   = document.getElementById('ma-detail-to').value || to;
+  if (detailFrom > detailTo) { alert('Case list range: "From" must be on or before "To".'); return; }
 
   const card = document.getElementById('ma-results-card');
   const body = document.getElementById('ma-results-body');
@@ -4556,15 +4584,16 @@ async function generateMemberActivityReport() {
                 : 0;
         stats.push({ label: 'Team Ave Eligible Cases', m: totalEligible, soloCount: true, pct: teamAvgEligPct, desc: 'Team-wide eligible rate across all logged events' });
 
-    const sortedRows = [...teamRows]
+    const sortedRows = allCases
+      .filter(c => c.date >= detailFrom && c.date <= detailTo)
       .sort((a, b) => (b.date||'').localeCompare(a.date||''))
       .map(c => ({ ...c, _attended: empCaseIds.has(c.id) }));
-    maReportData = { emp, from, to, stats, rows: sortedRows };
+    maReportData = { emp, from, to, detailFrom, detailTo, stats, rows: sortedRows };
 
     body.innerHTML = `
       <div class="detail-grid" style="margin-bottom:20px">
         <div class="detail-field">
-          <div class="detail-label">Date Range</div>
+          <div class="detail-label">Summary Range</div>
           <div>${fmt(from)} – ${fmt(to)}</div>
         </div>
         <div class="detail-field">
@@ -4596,6 +4625,11 @@ async function generateMemberActivityReport() {
             }).join('')}
           </tbody>
         </table>
+      </div>
+      <div style="display:flex;align-items:baseline;gap:12px;margin-bottom:10px">
+        <div class="detail-label" style="margin:0">Case List</div>
+        <div>${fmt(detailFrom)} – ${fmt(detailTo)}</div>
+        <div class="muted" style="font-size:12px">${sortedRows.length} cases · ${sortedRows.filter(c => c._attended).length} attended</div>
       </div>
       <div class="table-wrap">
         <table>
@@ -4631,7 +4665,7 @@ function maShortDate(d) {
 
 function exportMemberActivity(type) {
   if (!maReportData) return;
-  const { emp, from, to, stats, rows } = maReportData;
+  const { emp, from, to, detailFrom, detailTo, stats, rows } = maReportData;
   const statsHeaders = ['', 'Count', '% of Totals', 'Description'];
       const statsData = stats.map(s => [s.label, s.showTeamOnly ? `${s.t}` : (s.soloCount ? `${s.m}` : `${s.m} / ${s.t}`), (s.noPct || (s.soloCount && !s.pillPct && s.label !== 'Team Ave Eligible Cases')) ? '' : s.pct + '%', s.desc]);
   const rowHeaders = ['Date','Day','Category','Type','Responding','Call No','Location','Notes'];
@@ -4643,10 +4677,11 @@ function exportMemberActivity(type) {
   if (type === 'csv') {
     const lines = [
       [`Member Activity Report — ${emp.last_name}, ${emp.first_name}`],
-      [`Date Range: ${fmt(from)} to ${fmt(to)}`],
+      [`Summary Range: ${fmt(from)} to ${fmt(to)}`],
       [],
       statsHeaders, ...statsData,
       [],
+      [`Case List: ${fmt(detailFrom)} to ${fmt(detailTo)}`],
       rowHeaders, ...rowData
     ];
     const csv = lines.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
@@ -4721,7 +4756,7 @@ function exportMemberActivity(type) {
           <div style="font-weight:700;font-size:10px;margin-top:1px;font-family:Arial,sans-serif;color:#211D1F">Wasatch County</div>
         </div>
         <h2>WSAR Member Activity — ${emp.last_name}, ${emp.first_name}</h2>
-        <p>Date Range: ${fmt(from)} – ${fmt(to)} — Exported ${new Date().toLocaleDateString()}</p>
+        <p>Summary Range: ${fmt(from)} – ${fmt(to)} · Case List: ${fmt(detailFrom)} – ${fmt(detailTo)} — Exported ${new Date().toLocaleDateString()}</p>
         <p style="display:flex;align-items:center;gap:6px;margin-top:-10px">
           <span style="display:inline-block;width:12px;height:12px;background:#dcfce7;border:1px solid #86efac;border-radius:2px"></span>
           Green rows are cases you attended
