@@ -4585,7 +4585,7 @@ async function generateMemberActivityReport() {
         const teamAvgEligPct = meanPcts.length
           ? Math.round(meanPcts.reduce((a, b) => a + b, 0) / meanPcts.length)
                 : 0;
-        stats.push({ label: 'Team Ave Eligible Cases', m: totalEligible, soloCount: true, pct: teamAvgEligPct, desc: 'Team-wide eligible rate across all logged events' });
+        stats.push({ label: 'Team Ave Eligible Cases', m: totalEligible, soloCount: true, pct: teamAvgEligPct, desc: 'Team-wide eligible percentage across team events in date range' });
 
     const sortedRows = allCases
       .filter(c => c.date >= detailFrom && c.date <= detailTo)
@@ -4612,8 +4612,9 @@ async function generateMemberActivityReport() {
                       const isEligRow = s.label === 'Total Team Eligible Events' || s.label === 'Team Ave Eligible Cases';
                       const good = s.pct >= 40;
                       const isTeamAveRow = s.label === 'Team Ave Eligible Cases';
-                                          const hl = isTeamAveRow ? '#dbeafe' : '';
-                                  const border = isTeamAveRow ? '#93c5fd' : '';
+                      const isAttendedRow = s.label === 'Attended Events';
+                      const hl = isTeamAveRow ? '#dbeafe' : (isAttendedRow ? '#dcfce7' : '');
+                      const border = isTeamAveRow ? '#93c5fd' : (isAttendedRow ? '#86efac' : '');
                       const pctText = s.bold ? `<strong>${s.pct}%</strong>` : s.pct + '%';
                       const showPillPct = isEligRow || s.pillPct;
                       const pillBg = isEligRow ? hl : (good ? '#dcfce7' : '#fef9c3');
@@ -4624,6 +4625,10 @@ async function generateMemberActivityReport() {
                       const labelCell = hl ? `<span style="display:inline-block;padding:2px 10px;border-radius:4px;background:${hl}">${s.label}</span>` : s.label;
                       const countText = s.noCount ? '—' : (s.showTeamOnly ? `${s.t}` : ((s.soloCount || s.hideDenominator) ? `${s.m}` : `${s.m} / ${s.t}`));
                       const countCell = hl ? `<span style="display:inline-block;padding:2px 10px;border-radius:4px;background:${hl}">${countText}</span>` : countText;
+              if (isAttendedRow) {
+                const b = 'font-weight:700;color:#0f172a';
+                return `<tr><td style="${b}">${labelCell}</td><td style="${b}">${countCell}</td><td style="${b}">${pctCell}</td><td style="${b}">${s.desc || '—'}</td></tr>`;
+              }
               return `<tr><td>${labelCell}</td><td class="muted">${countCell}</td><td class="muted">${pctCell}</td><td class="muted">${s.desc || '—'}</td></tr>`;
             }).join('')}
           </tbody>
@@ -4697,9 +4702,10 @@ function exportMemberActivity(type) {
       const s = stats[i];
           const isEligRow = s.label === 'Total Team Eligible Events' || s.label === 'Team Ave Eligible Cases';
           const isTeamAveRow = s.label === 'Team Ave Eligible Cases';
+          const isAttendedRow = s.label === 'Attended Events';
           const good = s.pct >= 40;
-          const hl = isTeamAveRow ? '#dbeafe' : '';
-          const border = isTeamAveRow ? '#93c5fd' : '';
+          const hl = isTeamAveRow ? '#dbeafe' : (isAttendedRow ? '#dcfce7' : '');
+          const border = isTeamAveRow ? '#93c5fd' : (isAttendedRow ? '#86efac' : '');
           const showPillPct = isEligRow || s.pillPct;
           const pillBg = isEligRow ? hl : (good ? '#dcfce7' : '#fef9c3');
           const pillBorder = isEligRow ? border : (good ? '#86efac' : '#fde047');
@@ -4709,7 +4715,8 @@ function exportMemberActivity(type) {
                                                                                    : pctText);
           const labelCell = hl ? `<span style="display:inline-block;padding:2px 10px;border-radius:4px;background:${hl}">${r[0]}</span>` : r[0];
           const countCell = hl ? `<span style="display:inline-block;padding:2px 10px;border-radius:4px;background:${hl}">${r[1]}</span>` : r[1];
-          return `<tr><td>${labelCell}</td><td>${countCell}</td><td>${pctCell}</td><td>${r[3]}</td></tr>`;
+          const rowStyle = isAttendedRow ? ' style="font-weight:700"' : '';
+          return `<tr${rowStyle}><td>${labelCell}</td><td>${countCell}</td><td>${pctCell}</td><td>${r[3]}</td></tr>`;
     }).join('');
     const pdfHeaders = ['Date','Day','Category','Type','Call No','Location','Notes'];
     const pdfRowData = rows.map(c => [
