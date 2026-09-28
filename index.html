@@ -4482,8 +4482,8 @@ async function generateMemberActivityReport() {
     const stats = [
       { label: 'Search+Medicals',   m: count(memberRows, isS), desc: 'Medical and Search Pages' },
       { label: 'Regular Training', m: count(memberRows, isT), desc: 'Reg Trainings(2nd Thursday and 3rd Sat). Extra and Core training excluded' },
-      { label: 'Member Events', m: count(memberRows, isAll), soloCount: true, pillPct: true, desc: 'Medical + Search + Reg Train + Extra Training' },
-      { label: 'Total Team Eligible Events', m: count(memberRows, isElig), desc: 'Medical + Search + Regular Training', bold: true, noPct: true, showTeamOnly: true },
+      { label: 'Attended Events', m: count(memberRows, isAll), soloCount: true, pillPct: true, desc: 'Medical + Search + Reg Train + Training Extra (TE)' },
+      { label: 'Total Team Eligible Events', m: count(memberRows, isElig), desc: 'Medical + Search + Regular Training (TE excluded)', bold: true, noPct: true, showTeamOnly: true },
             ];
           const teamStats = [
                     count(teamRows, isS), count(teamRows, isT), count(teamRows, isAll), count(teamRows, isElig)
@@ -4492,12 +4492,12 @@ async function generateMemberActivityReport() {
                 // Total Team Eligible Events % should reflect member's Total Events over team's Total Eligible Cases
                 const eligStat = stats.find(s => s.label === 'Total Team Eligible Events');
                 if (eligStat) eligStat.pct = pct(count(memberRows, isAll), eligStat.t);
-                const memberEventsStat = stats.find(s => s.label === 'Member Events');
+                const memberEventsStat = stats.find(s => s.label === 'Attended Events');
                 if (eligStat && memberEventsStat) memberEventsStat.pct = eligStat.pct;
 
     // Extra Training (TE) — member count only, no team total or % (per member-only stat)
     stats.splice(2, 0, {
-      label: 'Extra Training TE',
+      label: 'Training Extra (TE)',
       m: count(memberRows, isTE),
       soloCount: true,
       desc: 'TE = training not required by whole team. Special teams, Rookie training, etc'
@@ -4533,7 +4533,10 @@ async function generateMemberActivityReport() {
                                       teamCeRawRows.push(...trData);
                                       trData.forEach(row => {
                                                     const ct = teamCaseTypeMap[row.case_id];
-                                                    if (!['S','T','TE'].includes(ct)) return;
+                                                    // TR counts as TE for non-Rookies (matches Dashboard & Reporting)
+                                                    const empStatus = allEmployees.find(e => e.id === row.employee_id)?.status;
+                                                    const effCt = (ct === 'TR' && empStatus !== 'Rookie') ? 'TE' : ct;
+                                                    if (!['S','T','TE'].includes(effCt)) return;
                                                     if (!teamEmpData[row.employee_id]) teamEmpData[row.employee_id] = { all: 0 };
                                                     teamEmpData[row.employee_id].all++;
                                       });
